@@ -19,6 +19,8 @@
 #include "cos_log.h"
 #include "cos_info.h"
 #include "cos_dir.h"
+#include <signal.h>
+
 
 using namespace std;
 using namespace qcloud_cos;
@@ -34,6 +36,7 @@ string config_file = "";
 bool foreground = false;
 CosAPI* cos_client = NULL;
 const string CONFIG_FILE_NAME = "cosfs_config.txt";
+pthread_t ntid = 0;//monitor pid
 
 
 int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_args* outargs)
@@ -137,6 +140,12 @@ int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_args* out
     return 1;
 }
 
+void sigterm_handler(int )
+{
+    S3FS_PRN_EXIT("sigterm handler, exit");
+    exit(0);
+}
+
 int main(int argc, char* argv[])
 {
     int ch;
@@ -144,6 +153,7 @@ int main(int argc, char* argv[])
     struct fuse_operations cosfs_oper;
     char *config_name = NULL;
     int option_index = 0;
+    signal(SIGTERM, sigterm_handler);
 
     openlog("cosfs", LOG_PID | LOG_ODELAY | LOG_NOWAIT, LOG_USER);
     set_s3fs_log_level(debug_level);
@@ -232,18 +242,9 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    //监控线程扫描cache(fuse加载后会kill自定义的线程)
-    /*
-    int ret;
-    pthread_t ntid;
-    if ((ret=pthread_create(&ntid, NULL, &CacheMonitor::monitorCache, NULL)) != 0)
-    {
-        S3FS_PRN_EXIT("monitorCache thread create failed, exit");
-        exit(EXIT_FAILURE);
-    }
-	*/
-
     memset(&cosfs_oper, 0, sizeof(cosfs_oper));
+    cosfs_oper.init      = &CosFS::cosfs_init;
+    cosfs_oper.destroy   = &CosFS::cosfs_destroy;
     cosfs_oper.open      = &CosFile::cosfs_open;
     cosfs_oper.read      = &CosFile::cosfs_read;
     cosfs_oper.release   = &CosFile::cosfs_release;
@@ -263,5 +264,6 @@ int main(int argc, char* argv[])
     //退出程序
     fuse_opt_free_args(&custom_args);
     delete cos_client;
+    S3FS_PRN_EXIT("main exit .......");
     exit(fuse_res);
 }

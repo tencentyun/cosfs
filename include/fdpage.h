@@ -39,7 +39,7 @@ class AutoLock1 {
 //------------------------------------------------
 // page block information
 // use fix-size block 1MB
-const int kPageSize = 8 << 20; // 8MB
+const int kPageSize = 4 << 20; // 4MB
 struct fdpage {
     char*  page_addr; // page在内存中的地址
     off_t  offset;    // 该page在文件中的偏移量
@@ -110,11 +110,12 @@ typedef std::list<struct fdpage*> fdpage_list_t;
 //
 // Management of loading area/modifying
 //
+const int Max_Page_Size = 5; //每个文件最大页面数
 class PageList {
   public:
     static void FreeList(fdpage_list_t* list);
 
-    explicit PageList(const std::string& file_cos_path, int32_t max_page_size = 10); // 默认只有10个page，每个page有2MB
+    explicit PageList(const std::string& file_cos_path, int32_t max_page_size = Max_Page_Size); // 默认只有10个page，每个page有2MB
     ~PageList();
 
     size_t GetUncachedPageSize(off_t start, size_t size);

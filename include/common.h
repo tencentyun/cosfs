@@ -124,6 +124,7 @@ extern const char* s3fs_log_nest[4];
 extern s3fs_log_level debug_level;
 
 typedef std::map<std::string, std::string> headers_t;
+typedef std::map<std::string, headers_t> keys_maps;
 #define STR2NCMP(str1, str2)  strncmp(str1, str2, strlen(str2))
 
 #endif // COSFS_COMMON_H_

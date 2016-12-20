@@ -6,7 +6,6 @@
 #include "fdpage.h"
 
 #include "cos_log.h"
-#include "http_util.h"
 #include "cos_info.h"
 using namespace std;
 

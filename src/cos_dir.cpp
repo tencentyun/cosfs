@@ -16,15 +16,13 @@ int CosDir::cosfs_opendir(const char* path, struct fuse_file_info* fi)
 
 int CosDir::cosfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi)
 {
-    S3FS_PRN_INFO("cosfs_readdir,path = %s, mount_bucket_folder=%s",path,CosInfo::mount_bucket_folder.c_str());
     string cospath(CosInfo::mount_bucket_folder + path);
+    S3FS_PRN_INFO("cosfs_readdir,path = %s",cospath.c_str());
     std::string::reverse_iterator iter= cospath.rbegin();
     if (iter != cospath.rend() && *iter != '/'){
         cospath.append("/");
     }
 
-    StatCache* pCache = StatCache::getStatCacheData();
-    headers_t headers_stat;
     struct stat filestat;
     filestat.st_mode = S_IFREG | 0444;
     struct stat dirstat;
@@ -36,6 +34,9 @@ int CosDir::cosfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
     bool listover = false;
     uint64_t dircount = 0;
     uint64_t filecount = 0;
+    headers_t headers_stat;
+    keys_maps stats;
+    StatCache* pCache = StatCache::getStatCacheData();
     int  loopcount = 0; //对循环做一个保护,防止死循环
     FolderListReq folderListReq(bucket, cospath, 1000, true, context);;
     while(listover == false && loopcount <= 100) {
@@ -47,7 +48,7 @@ int CosDir::cosfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
         result = cos_client->FolderList(folderListReq);
         gettimeofday(&tv1, NULL);
         time_end_flag = tv1.tv_sec * 1000 * 1000 + tv1.tv_usec;
-        S3FS_PRN_INFO("listFolder loop[%d] used time=%lld\n",loopcount, time_end_flag - time_start_flag);
+        S3FS_PRN_DBG("listFolder loop[%d] used time=%lld\n",loopcount, time_end_flag - time_start_flag);
         Json::Value ret = StringUtils::StringToJson(result);
         //解析json失败或者返回的响应消息不符合cos格式
         if (!ret.isMember("code"))
@@ -99,10 +100,15 @@ int CosDir::cosfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
       
             headers_stat[FILE_NAME] = fullpath;
             headers_stat[LAST_MODIFIED] = mtime;
-            pCache->AddStat(fullpath, headers_stat);
-            S3FS_PRN_INFO("cosfs_readdir: cache file=%s,size=%s,mtime=%s,type=%s",fullpath.c_str(),headers_stat[CONTENT_LENGTH].c_str(),headers_stat[LAST_MODIFIED].c_str(), headers_stat[CONTENT_TYPE].c_str());
+            stats[fullpath] = headers_stat;
+            headers_stat.clear();
+            S3FS_PRN_DBG("cosfs_readdir: cache file=%s,size=%s,mtime=%s,type=%s",fullpath.c_str(),headers_stat[CONTENT_LENGTH].c_str(),headers_stat[LAST_MODIFIED].c_str(), headers_stat[CONTENT_TYPE].c_str());
         }
 
+        if (stats.size() > 0 ){
+            pCache->AddStatS(stats);
+            stats.clear();
+        }
     }
 
     S3FS_PRN_INFO("cosfs_readdir: return to fuse total_count=%lu, filecount=%lu,dircount=%lu", filecount+dircount, filecount, dircount);

@@ -19,5 +19,6 @@ link_directories(./lib)
 file(GLOB_RECURSE cosfs_source_files "./src/*.cpp")
 ADD_EXECUTABLE(cosfs ${cosfs_source_files})
 add_definitions(-D_FILE_OFFSET_BITS=64)
-target_link_libraries(cosfs fuse dl cossdk curl ssl crypto rt jsoncpp stdc++ pthread z boost_system boost_thread)
+target_link_libraries(cosfs fuse dl cossdk curl ssl crypto rt jsoncpp
+stdc++ pthread z boost_system boost_thread tcmalloc)
 #set_target_properties(cosfs PROPERTIES OUTPUT_NAME "cosfs")

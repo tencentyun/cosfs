@@ -161,36 +161,6 @@ bool CommonUtil::parseConfig(const char* pconfig_file)
             is.close();
             return false;
         }
-
-        /*
-        if (root.isMember(CONFIG_DOMAIN)) {
-            CosInfo::domain = root[CONFIG_DOMAIN].asString();
-        } else {
-            S3FS_PRN_ERR("parseConfig(%s) error, domain unavailable",file_config.c_str());
-            is.close();            
-            return false;
-        }
-
-        if (root.isMember(COS_SDK_CONFIG_FILE)) {
-            CosInfo::cos_sdk_config_file = root[COS_SDK_CONFIG_FILE].asString();
-        } else {
-            S3FS_PRN_ERR("parseConfig(%s) error, cos_sdk_config_file unavailable",file_config.c_str());
-            is.close();            
-            return false;
-        }
-
-        domain = CosInfo::domain;
-        if (domain.compare(CONFIG_VALUE_COS) == 0) {
-            CosInfo::kApiCosapiEndpoint = HTTP_HEAD + CosInfo::bucket + "-" + str(CosInfo::appid) + ".cossh.myqcloud.com";
-        } else if (domain.compare(CONFIG_VALUE_CDN) == 0) {
-            CosInfo::kApiCosapiEndpoint = HTTP_HEAD + CosInfo::bucket + "-" + str(CosInfo::appid) + ".file.myqcloud.com";
-        } else {
-            if (domain.compare(0, strlen(HTTP_HEAD.c_str()), HTTP_HEAD) == 0){
-                CosInfo::kApiCosapiEndpoint = domain;
-            } else {
-                CosInfo::kApiCosapiEndpoint = HTTP_HEAD + domain;
-            }
-        }*/
     } else {
         S3FS_PRN_ERR("parseConfig(%s) reader.parse error",file_config.c_str());
         is.close();

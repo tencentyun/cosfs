@@ -32,7 +32,7 @@
        if(S3FS_LOG_CRIT == level || (S3FS_LOG_CRIT != debug_level && level == (debug_level & level))){ \
          if(foreground){ \
            fprintf(stdout, "%s%s:%s(%d): " fmt "%s\n", S3FS_LOG_LEVEL_STRING(level), __FILE__, __func__, __LINE__, __VA_ARGS__); \
-         }else{ \
+         }else { \
            syslog(S3FS_LOG_LEVEL_TO_SYSLOG(level), "%s:%s(%d): " fmt "%s", __FILE__, __func__, __LINE__, __VA_ARGS__); \
          } \
        }
@@ -41,15 +41,15 @@
        if(S3FS_LOG_CRIT == level || (S3FS_LOG_CRIT != debug_level && level == (debug_level & level))){ \
          if(foreground){ \
            fprintf(stdout, "%s%s%s:%s(%d): " fmt "%s\n", S3FS_LOG_LEVEL_STRING(level), S3FS_LOG_NEST(nest), __FILE__, __func__, __LINE__, __VA_ARGS__); \
-         }else{ \
-	   syslog(S3FS_LOG_LEVEL_TO_SYSLOG(level), "%s %s(%d)" fmt "%s", S3FS_LOG_NEST(nest), __FILE__, __LINE__, __VA_ARGS__); \
+         }else { \
+	       syslog(S3FS_LOG_LEVEL_TO_SYSLOG(level), "%s %s(%d)" fmt "%s", S3FS_LOG_NEST(nest), __FILE__, __LINE__, __VA_ARGS__); \
          } \
        }
 
 #define S3FS_LOW_LOGPRN_EXIT(fmt, ...) \
        if(foreground){ \
          fprintf(stderr, "cosfs: " fmt "%s\n", __VA_ARGS__); \
-       }else{ \
+       }else { \
          fprintf(stderr, "cosfs: " fmt "%s\n", __VA_ARGS__); \
          syslog(S3FS_LOG_LEVEL_TO_SYSLOG(S3FS_LOG_CRIT), "cosfs: " fmt "%s", __VA_ARGS__); \
        }

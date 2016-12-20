@@ -19,8 +19,8 @@ static const string CONTENT_TYPE = "Content-Type";
 static const string FILE_NAME = "name";
 static const int    SIGN_EXPIRE_TIME = 300;
 static const int    CACHE_VALID_TIME = 120;  //cache有效时长120秒
-static const int    CACHE_EXPIRE_TIME = 180;  //cache有效时长3600秒
-static const int    CACHE_SCAN_INTERVAL = 3600;  //cache扫描间隔
+static const int    CACHE_EXPIRE_TIME = 300;  //cache有效时长360秒
+static const int    CACHE_SCAN_INTERVAL = 300;  //cache扫描间隔900秒
 
 #endif
 

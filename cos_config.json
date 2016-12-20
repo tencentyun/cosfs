@@ -4,8 +4,8 @@
 	"SecretKey":"FZjRSu0mJ9YJijVXXY57MAdCl4uylaA7",
 	"Region":"gz",
 	"SignExpiredTime":360,
-	"CurlConnectTimeoutInms":60000,
-	"CurlGlobalConnectTimeoutInms":300000,
+	"CurlConnectTimeoutInms":10000,
+	"CurlGlobalConnectTimeoutInms":20000,
 	"UploadSliceSize":1048576,
 	"L5ModID":-1,
 	"L5CmdID":-1,
@@ -14,5 +14,6 @@
 	"SelfDomain":"",
 	"UploadThreadPoolSize":5,
 	"AsynThreadPoolSize":2,
-	"LogoutType":1
+	"LogoutType":2,
+        "dbg_level":7
 }

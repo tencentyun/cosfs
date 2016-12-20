@@ -29,11 +29,9 @@
 #define FUSE_VERSION FUSE_MAKE_VERSION(FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION)
 
 /* This interface uses 64 bit off_t */
-/*
 #if _FILE_OFFSET_BITS != 64
 #error Please add -D_FILE_OFFSET_BITS=64 to your compile flags!
 #endif
-*/
 
 #ifdef __cplusplus
 extern "C" {

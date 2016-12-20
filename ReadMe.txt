@@ -1,6 +1,7 @@
 运行环境: Linux
 依赖动态库：dl z ssl crypto stdc++ pthread
-静态库(程序包已携带): cossdk fuse curl jsoncpp
+静态库: cossdk fuse curl jsoncpp
+libfuse版本:2.9.6
 
 1、编译
 cmake .

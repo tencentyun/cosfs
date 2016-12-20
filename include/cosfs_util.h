@@ -6,20 +6,6 @@
 // Typedef
 //-------------------------------------------------------------------
 
-class AutoLock
-{
-  private:
-    pthread_mutex_t* auto_mutex;
-    bool             is_locked;
-
-  public:
-    AutoLock(pthread_mutex_t* pmutex = NULL);
-    ~AutoLock();
-
-    bool Lock(void);
-    bool Unlock(void);
-};
-
 //-------------------------------------------------------------------
 // Functions
 //-------------------------------------------------------------------

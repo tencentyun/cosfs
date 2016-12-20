@@ -10,6 +10,7 @@ class CacheMonitor
 public:
     static void monitorCache();
     static bool isNeedCheck();
+    static void* monitor_run(void*);
 
 private:
     static time_t last_check_time; 
