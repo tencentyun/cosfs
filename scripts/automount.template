@@ -1,0 +1,6 @@
+#! /bin/bash
+#
+# cosfs      Automount Tencentyun COS  Bucket in the specified direcotry.
+#
+
+cosfs your_appid:your_bucket your_mountpoint -ourl=your_url -oallow_other
