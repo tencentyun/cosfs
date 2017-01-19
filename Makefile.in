@@ -318,8 +318,8 @@ top_srcdir = @top_srcdir@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ######################################################################
-SUBDIRS = src test doc
-EXTRA_DIST = doc default_commit_hash
+SUBDIRS = src test
+EXTRA_DIST = default_commit_hash
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 

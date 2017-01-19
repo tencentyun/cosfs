@@ -15,9 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ######################################################################
-SUBDIRS=src test doc
+SUBDIRS=src test
 
-EXTRA_DIST=doc default_commit_hash
+EXTRA_DIST=default_commit_hash
 
 dist-hook:
 	rm -rf `find $(distdir)/doc -type d -name .svn`

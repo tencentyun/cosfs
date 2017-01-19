@@ -5091,7 +5091,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
-ac_config_files="$ac_config_files Makefile src/Makefile test/Makefile doc/Makefile"
+ac_config_files="$ac_config_files Makefile src/Makefile test/Makefile"
 
 
 # Extract the first word of "git —version", so it can be a program name with args.
@@ -5922,7 +5922,6 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
-    "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

@@ -252,7 +252,7 @@ AC_COMPILE_IFELSE(
 dnl ----------------------------------------------
 dnl output files
 dnl ----------------------------------------------
-AC_CONFIG_FILES(Makefile src/Makefile test/Makefile doc/Makefile)
+AC_CONFIG_FILES(Makefile src/Makefile test/Makefile)
 
 dnl ----------------------------------------------
 dnl short commit hash
