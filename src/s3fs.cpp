@@ -415,8 +415,6 @@ static int get_object_attribute(const char* path, struct stat* pstbuf, headers_t
     return 0;
   }
 
-  // overcheck disable
-  overcheck = false; // added by jimmyyan
   // Check cache.
   strpath = path;
   if(overcheck && string::npos != (Pos = strpath.find("_$folder$", 0))){
