@@ -67,7 +67,7 @@ cn-south 对应华南广州地域
 cn-north 对应华北天津地域
 cn-east 对应华东上海地域
 ```
-echo my-bucket:faint:123 > /etc/passwd-ossfs
+echo my-bucket:faint:123 > /etc/passwd-cosfs
 chmod 640 /etc/passwd-cosfs
 mkdir /tmp/cosfs
 cosfs appid:my-bucket /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
