@@ -1095,7 +1095,7 @@ bool S3fsCurl::UploadMultipartPostCallback(S3fsCurl* s3fscurl)
   // }
   S3FS_PRN_ERR("headdata is : %s", s3fscurl->headdata->str());
   string header_str(s3fscurl->headdata->str(), s3fscurl->headdata->size());
-  int pos = header_str.find("Etag: \"");
+  int pos = header_str.find("ETag: \"");
   if (pos != std::string::npos) {
       s3fscurl->partdata.etag = header_str.substr(pos + 7, 40);
       S3FS_PRN_ERR("partdata.etag : %s", s3fscurl->partdata.etag.c_str());
