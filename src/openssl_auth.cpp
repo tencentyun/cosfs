@@ -286,7 +286,7 @@ string s3fs_sha1_hex(const unsigned char* data, unsigned int datalen, unsigned c
 {
   (*digestlen) = EVP_MAX_MD_SIZE * sizeof(unsigned char);
   if(NULL == ((*digest) = reinterpret_cast<unsigned char*>(malloc(*digestlen)))){
-    return false;
+    return “”;
   }
 
   const EVP_MD* md    = EVP_get_digestbyname("sha1");
