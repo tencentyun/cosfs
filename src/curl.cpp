@@ -1097,7 +1097,7 @@ bool S3fsCurl::UploadMultipartPostCallback(S3fsCurl* s3fscurl)
   string header_str(s3fscurl->headdata->str(), s3fscurl->headdata->size());
   int pos = header_str.find("ETag: \"");
   if (pos != std::string::npos) {
-      s3fscurl->partdata.etag = header_str.substr(pos + 7, 40);
+      s3fscurl->partdata.etag = header_str.substr(pos + 7, 32); // 获取32位的MD5 ETag值
       S3FS_PRN_ERR("partdata.etag : %s", s3fscurl->partdata.etag.c_str());
   }
   s3fscurl->partdata.etaglist->at(s3fscurl->partdata.etagpos).assign(s3fscurl->partdata.etag);
