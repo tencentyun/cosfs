@@ -1097,7 +1097,12 @@ bool S3fsCurl::UploadMultipartPostCallback(S3fsCurl* s3fscurl)
   string header_str(s3fscurl->headdata->str(), s3fscurl->headdata->size());
   int pos = header_str.find("ETag: \"");
   if (pos != std::string::npos) {
-      s3fscurl->partdata.etag = header_str.substr(pos + 7, 32); // 获取32位的MD5 ETag值
+      if (header_str.at(pos+39) != '"') {
+          // sha1
+          s3fscurl->partdata.etag = header_str.substr(pos + 7, 40);
+      } else {
+          s3fscurl->partdata.etag = header_str.substr(pos + 7, 32);  // ETag get md5 value
+      }
       S3FS_PRN_ERR("partdata.etag : %s", s3fscurl->partdata.etag.c_str());
   }
   s3fscurl->partdata.etaglist->at(s3fscurl->partdata.etagpos).assign(s3fscurl->partdata.etag);
@@ -2964,7 +2969,12 @@ int S3fsCurl::UploadMultipartPostRequest(const char* tpath, int part_num, string
       string header_str(headdata->str(), headdata->size());
       int pos = header_str.find("ETag: \"");
       if (pos != std::string::npos) {
-          partdata.etag = header_str.substr(pos + 7, 40);
+          if (header_str.at(pos+39) != '"') {
+              // sha1
+              partdata.etag = header_str.substr(pos + 7, 40);
+          } else {
+              partdata.etag = header_str.substr(pos + 7, 32);  // ETag get md5 value
+          }
           S3FS_PRN_ERR("partdata.etag : %s", partdata.etag.c_str());
       }
       partdata.uploaded = true;
