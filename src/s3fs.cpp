@@ -217,6 +217,7 @@ static int s3fs_getxattr(const char* path, const char* name, char* value, size_t
 #endif
 static int s3fs_listxattr(const char* path, char* list, size_t size);
 static int s3fs_removexattr(const char* path, const char* name);
+static void s3fs_exit_fuseloop(int exit_status);
 
 //-------------------------------------------------------------------
 // Functions
@@ -3305,6 +3306,14 @@ static int s3fs_removexattr(const char* path, const char* name)
    
 static void* s3fs_init(struct fuse_conn_info* conn)
 {
+  // check bucket
+  {
+       int result;
+       if (EXIT_SUCCESS != (result = s3fs_check_service())) {
+           s3fs_exit_fuseloop(result);
+           return NULL;
+       }
+  }
   // Investigate system capabilities
   #ifndef __APPLE__
   if((unsigned int)conn->capable & FUSE_CAP_ATOMIC_O_TRUNC){
@@ -3632,12 +3641,6 @@ static int s3fs_check_service(void)
 {
   S3FS_PRN_INFO("check services.");
 
-  // At first time for access S3, we check RAM role if it sets.
-  if(!S3fsCurl::CheckRAMCredentialUpdate()){
-    S3FS_PRN_CRIT("Failed to check RAM role name(%s).", S3fsCurl::GetRAMRole());
-    return EXIT_FAILURE;
-  }
-
   S3fsCurl s3fscurl;
   int      res;
   if(0 > (res = s3fscurl.CheckBucket())){
@@ -3659,18 +3662,6 @@ static int s3fs_check_service(void)
         res          = s3fscurl.CheckBucket();
         responseCode = s3fscurl.GetLastResponseCode();
       }
-    }
-
-    // try signature v2
-    if(0 > res && (responseCode == 400 || responseCode == 403) && S3fsCurl::IsSignatureV4()){
-      // switch sigv2
-      S3FS_PRN_WARN("Could not connect, so retry to connect by signature version 2.");
-      S3fsCurl::SetSignatureV4(false);
-
-      // retry to check with sigv2
-      s3fscurl.DestroyCurlHandle();
-      res          = s3fscurl.CheckBucket();
-      responseCode = s3fscurl.GetLastResponseCode();
     }
 
     // check errors(after retrying)
@@ -4601,6 +4592,19 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
   return 1;
 }
 
+// s3fs_init calls this function to exit cleanly from the fuse event loop.
+// //
+// // There's no way to pass an exit status to the high-level event loop API, so 
+// // this function stores the exit value in a global for main()
+static void s3fs_exit_fuseloop(int exit_status) {
+    S3FS_PRN_ERR("Exiting FUSE event loop due to errors\n");
+    s3fs_init_deferred_exit_status = exit_status;
+    struct fuse_context *ctx = fuse_get_context();
+    if (NULL != ctx) {
+        fuse_exit(ctx->fuse);
+    }
+}
+
 int main(int argc, char* argv[])
 {
   int ch;
@@ -4837,6 +4841,12 @@ int main(int argc, char* argv[])
   if(!set_s3fs_usr2_handler()){
     S3FS_PRN_EXIT("could not set signal handler for SIGUSR2.");
     exit(EXIT_FAILURE);
+  }
+     
+  int result;
+  if (EXIT_SUCCESS != (result = s3fs_check_service())) {
+       S3FS_PRN_EXIT("bucket not exist, exiting...");
+       exit(result);
   }
 
   // now passing things off to fuse, fuse will finish evaluating the command line args
