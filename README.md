@@ -101,3 +101,14 @@ cosfs提供的功能和性能和本地文件系统相比，具有一些局限性
 
 Licensed under the GNU GPL version 2
 
+### 常见问题
+* 如何挂载目录
+   在挂载命令的时候，可以指定目录，如
+   
+   cosfs appid:my-bucket:/my-dir /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
+   注意，my-dir必须以/开头
+   
+   
+* 为什么之前可用写文件，突然不能写了？
+
+   由于cos鉴权产品策略调整，所以老版本的cosfs工具会导致策略校验不过，因此需要拉取最新的cosfs工具重新mount
