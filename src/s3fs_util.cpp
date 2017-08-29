@@ -783,7 +783,7 @@ blkcnt_t get_blocks(off_t size)
   return size / 512 + 1;
 }
 
-time_t cvtRAMExpireStringToTime(const char* s)
+time_t cvtCAMExpireStringToTime(const char* s)
 {
   struct tm tm;
   if(!s){

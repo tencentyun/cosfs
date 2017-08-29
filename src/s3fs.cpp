@@ -3705,17 +3705,23 @@ static int s3fs_check_service(void)
 // Return:  1 - OK(could read and set accesskey etc.)
 //          0 - NG(could not read)
 //         -1 - Should shoutdown immidiatly
-static int check_for_cos_format(void)
+int check_for_cos_format(void)
 {
   size_t first_pos = string::npos;
   string line;
   bool   got_access_key_id_line = 0;
   bool   got_secret_key_line = 0;
+  bool   got_token_line = 0;
+  bool   got_token_expire_line = 0;
   string str1 ("COSAccessKeyId=");
   string str2 ("COSSecretKey=");
+  string str3 ("COSAccessToken=");
+  string str4 ("COSAccessTokenExpire=");
   size_t found;
   string AccessKeyId;
   string SecretAccesskey;
+  string Token;
+  string TokenExpire;
 
 
   ifstream PF(passwd_file.c_str());
@@ -3761,7 +3767,28 @@ static int check_for_cos_format(void)
          got_secret_key_line = 1;
          continue;
       }
+
+      found = line.find(str3);
+      if(found != string::npos){
+         first_pos = line.find_first_of("=");
+         Token = line.substr(first_pos + 1, string::npos);
+         got_token_line = 1;
+         continue;
+      }
+      
+     found = line.find(str4);
+      if(found != string::npos){
+         first_pos = line.find_first_of("=");
+         TokenExpire = line.substr(first_pos + 1, string::npos);
+         got_token_expire_line = 1;
+         continue;
+      }
     }
+  }
+
+   // token and token expire are optional
+  if (got_token_line && got_token_expire_line) {
+      S3fsCurl::SetToken(Token, TokenExpire);
   }
 
   if(got_access_key_id_line && got_secret_key_line){
@@ -4376,9 +4403,9 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       passwd_file = strchr(arg, '=') + sizeof(char);
       return 0;
     }
-    if(0 == STR2NCMP(arg, "ram_role=")){
+    if(0 == STR2NCMP(arg, "cam_role=")){
       const char* role = strchr(arg, '=') + sizeof(char);
-      S3fsCurl::SetRAMRole(role);
+      S3fsCurl::SetCAMRole(role);
       return 0;
     }
     if(0 == STR2NCMP(arg, "public_bucket=")){
@@ -4725,7 +4752,7 @@ int main(int argc, char* argv[])
   }
   if(passwd_file.size() > 0 && S3fsCurl::IsSetAccessKeyId()){
     S3FS_PRN_EXIT("specifying both passwd_file and the access keys options is invalid.");
-    exit(EXIT_FAILURE);
+    // exit(EXIT_FAILURE);
   }
   if(!S3fsCurl::IsPublicBucket()){
     if(EXIT_SUCCESS != get_access_keys()){

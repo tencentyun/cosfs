@@ -52,6 +52,7 @@ using namespace std;
 
 static const std::string empty_payload_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
+extern int check_for_cos_format(void); // implented in s3fs.cpp
 //-------------------------------------------------------------------
 // Utilities
 //-------------------------------------------------------------------
@@ -297,7 +298,7 @@ string           S3fsCurl::COSAccessKeyId;
 string           S3fsCurl::COSSecretAccessKey;
 string           S3fsCurl::COSAccessToken;
 time_t           S3fsCurl::COSAccessTokenExpire= 0;
-string           S3fsCurl::RAM_role;
+string           S3fsCurl::CAM_role;
 long             S3fsCurl::ssl_verify_hostname = 1;    // default(original code...)
 curltime_t       S3fsCurl::curl_times;
 curlprogress_t   S3fsCurl::curl_progress;
@@ -1039,6 +1040,30 @@ bool S3fsCurl::SetVerbose(bool flag)
   return old;
 }
 
+bool S3fsCurl::checkSTSCredentialUpdate(void) {
+    if (S3fsCurl::CAM_role.empty()) {
+        return true;
+    }
+
+    if (time(NULL) <= S3fsCurl::COSAccessTokenExpire) {
+        return true;
+    }
+   
+   // if return value is not equal 1, means wrong format key
+   if (check_for_cos_format() != 1) {
+       return false;
+   }
+
+   return true;
+}
+
+
+bool S3fsCurl::SetToken(const string& token, const string& token_expire) {
+    COSAccessToken = token;
+    COSAccessTokenExpire = cvtCAMExpireStringToTime(token_expire.c_str());
+    return true;
+}
+
 bool S3fsCurl::SetAccessKey(const char* AccessKeyId, const char* SecretAccessKey)
 {
   if(!AccessKeyId || '\0' == AccessKeyId[0] || !SecretAccessKey || '\0' == SecretAccessKey[0]){
@@ -1059,10 +1084,10 @@ long S3fsCurl::SetSslVerifyHostname(long value)
   return old;
 }
 
-string S3fsCurl::SetRAMRole(const char* role)
+string S3fsCurl::SetCAMRole(const char* role)
 {
-  string old = S3fsCurl::RAM_role;
-  S3fsCurl::RAM_role = role ? role : "";
+  string old = S3fsCurl::CAM_role;
+  S3fsCurl::CAM_role = role ? role : "";
   return old;
 }
 
@@ -1377,14 +1402,14 @@ bool S3fsCurl::SetRAMCredentials(const char* response)
   S3fsCurl::COSAccessKeyId       = keyval[string(RAMCRED_ACCESSKEYID)];
   S3fsCurl::COSSecretAccessKey   = keyval[string(RAMCRED_SECRETACCESSKEY)];
   S3fsCurl::COSAccessToken       = keyval[string(RAMCRED_ACCESSTOKEN)];
-  S3fsCurl::COSAccessTokenExpire = cvtRAMExpireStringToTime(keyval[string(RAMCRED_EXPIRATION)].c_str());
+  S3fsCurl::COSAccessTokenExpire = cvtCAMExpireStringToTime(keyval[string(RAMCRED_EXPIRATION)].c_str());
 
   return true;
 }
 
 bool S3fsCurl::CheckRAMCredentialUpdate(void)
 {
-  if(0 == S3fsCurl::RAM_role.size()){
+  if(0 == S3fsCurl::CAM_role.size()){
     return true;
   }
   if(time(NULL) + RAM_EXPIRE_MERGIN <= S3fsCurl::COSAccessTokenExpire){
@@ -1958,6 +1983,15 @@ int S3fsCurl::RequestPerform(void)
 string S3fsCurl::CalcSignature(string method, string strMD5, string content_type, string date, string resource)
 {
   string Signature;
+ 
+  if (0 < S3fsCurl::CAM_role.size()) {
+      if (!S3fsCurl::checkSTSCredentialUpdate()) {
+          S3FS_PRN_ERR("Something error occurred in checking CAM STS Credential");
+          return Signature;
+      }
+      requestHeaders = curl_slist_sort_insert(requestHeaders, "x-cos-security-token", S3fsCurl::COSAccessToken.c_str());
+  }
+
   const void* key            = S3fsCurl::COSSecretAccessKey.data();
   int key_len                = S3fsCurl::COSSecretAccessKey.size();
 
@@ -2099,9 +2133,9 @@ int S3fsCurl::DeleteRequest(const char* tpath)
 //
 int S3fsCurl::GetRAMCredentials(void)
 {
-  S3FS_PRN_INFO3("[RAM role=%s]", S3fsCurl::RAM_role.c_str());
+  S3FS_PRN_INFO3("[RAM role=%s]", S3fsCurl::CAM_role.c_str());
 
-  if(0 == S3fsCurl::RAM_role.size()){
+  if(0 == S3fsCurl::CAM_role.size()){
     S3FS_PRN_ERR("RAM role name is empty.");
     return -EIO;
   }
@@ -2113,7 +2147,7 @@ int S3fsCurl::GetRAMCredentials(void)
   }
 
   // url
-  url             = string(RAM_CRED_URL) + S3fsCurl::RAM_role;
+  url             = string(RAM_CRED_URL) + S3fsCurl::CAM_role;
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
