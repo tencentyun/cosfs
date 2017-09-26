@@ -89,6 +89,7 @@ bool pathrequeststyle             = false;
 bool is_specified_endpoint        = false;
 bool noxattr                      = false;
 bool direct_upload                = false;
+int  direct_upload_part_num        = 10;
 int  s3fs_init_deferred_exit_status = 0;
 std::string program_name;
 std::string service_path          = "/";
@@ -4534,10 +4535,29 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       return 0;
     }
 
+    if (0 == STR2NCMP(arg, "direct_upload=")) {
+	  const char *p = strchr(arg, '=') + sizeof(char);
+	  const char *temp = p;
+      while (*temp) {
+        if (!isdigit(*(temp++))) {
+          printf("Illegal input direct_upload number.\n");
+		  exit(EXIT_FAILURE);
+	    }
+	  }
+      direct_upload_part_num = atoi(p);
+	  if (direct_upload_part_num <= 0) {
+        printf("direct_upload_part_num must be bigger than 0.\n");
+		exit(EXIT_FAILURE);
+	  }
+      direct_upload = true;
+      return 0;
+    }
+
     if (0 == STR2NCMP(arg, "direct_upload")) {
       direct_upload = true;
       return 0;
     }
+
     //
     // debug option for s3fs
     //

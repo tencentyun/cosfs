@@ -22,6 +22,7 @@
 #include "curl.h"
 
 extern bool direct_upload;
+extern int direct_upload_part_num;
 
 //------------------------------------------------
 // CacheFileStat

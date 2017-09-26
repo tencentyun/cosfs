@@ -112,6 +112,7 @@ bool CacheFileStat::DeleteCacheFileStat(const char* path)
     S3FS_PRN_ERR("failed to create cache stat file path(%s)", path);
     return false;
   }
+
   if(0 != unlink(sfile_path.c_str())){
     if(ENOENT == errno){
       S3FS_PRN_DBG("failed to delete file(%s): errno=%d", path, errno);
@@ -1484,7 +1485,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   ssize_t wsize;
 
   if(0 == upload_id.length()){
-    // upload file directly 
+    // upload file directly
     if (direct_upload) {
       if(0 != (result = NoCachePreMultipartPost())){
         S3FS_PRN_ERR("failed to switch multipart uploading with no cache(errno=%d)", result);
@@ -1498,7 +1499,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
       size_t restsize = pagelist.GetTotalUnloadedPageSize(0, start) + size;
       if(FdManager::IsSafeDiskSpace(NULL, restsize)){
         // enough disk space
-  
+
         // Load unitialized area which starts from 0 to (start + size) before writing.
         if(0 < start && 0 != (result = Load(0, static_cast<size_t>(start)))){
           S3FS_PRN_ERR("failed to load uninitialized area before writing(errno=%d)", result);
@@ -1539,41 +1540,35 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   if(0 < upload_id.length()) {
     mp_size += static_cast<size_t>(wsize);
     size_t part_size = static_cast<size_t>(S3fsCurl::GetMultipartSize());
-    if (direct_upload) {
-      if(10 * part_size <= mp_size) {
-        size_t transfer_size = (mp_size / static_cast<size_t>(S3fsCurl::GetMultipartSize())) * static_cast<size_t>(S3fsCurl::GetMultipartSize());
-        // over ten multipart size
-        if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
-          path.c_str(), orgmeta, fd, mp_start, transfer_size, upload_id, &etaglist))) {
-          return result;
-        }
-
-        if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + transfer_size))) {
-          S3FS_PRN_ERR("failed to truncate file(%d).", fd);
-          return -EIO;
-        }
-        mp_start += transfer_size;
-        mp_size   = mp_size - transfer_size;
+	bool need_trunc = false;
+    if (direct_upload && direct_upload_part_num * part_size <= mp_size) {
+      // over direct_upload_part_num multipart size
+      if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
+        path.c_str(), orgmeta, fd, mp_start, mp_size, upload_id, &etaglist))) {
+        return result;
       }
-    } else {
-      if(part_size <= mp_size){
-        // over one multipart size
-        if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
-          S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
-          return result;
-        }
-        // [NOTE]
-        // truncate file to zero and set length to part offset + size
-        // after this, file length is (offset + size), but file does not use any disk space.
-        //
-        if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + mp_size))){
-          S3FS_PRN_ERR("failed to truncate file(%d).", fd);
-          return -EIO;
-        }
-        mp_start += mp_size;
-        mp_size   = 0;
+      need_trunc = true;
+    } else if(part_size <= mp_size) {
+      // over one multipart size
+      if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
+        S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
+        return result;
       }
+      need_trunc = true;
     }
+
+	if (need_trunc) {
+      // [NOTE]
+      // truncate file to zero and set length to part offset + size
+      // after this, file length is (offset + size), but file does not use any disk space.
+      //
+      if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + mp_size))){
+        S3FS_PRN_ERR("failed to truncate file(%d).", fd);
+        return -EIO;
+      }
+      mp_start += mp_size;
+      mp_size   = 0;
+	}
   }
 
   // Update the stat cache.

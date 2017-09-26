@@ -1093,7 +1093,7 @@ bool S3fsCurl::UploadMultipartPostCallback(S3fsCurl* s3fscurl)
   // if(NULL == strstr(s3fscurl->headdata->str(), upper(s3fscurl->partdata.etag).c_str())){
   //  return false;
   // }
-  S3FS_PRN_ERR("headdata is : %s", s3fscurl->headdata->str());
+  S3FS_PRN_INFO("headdata is : %s", s3fscurl->headdata->str());
   string header_str(s3fscurl->headdata->str(), s3fscurl->headdata->size());
   int pos = header_str.find("ETag: \"");
   if (pos != std::string::npos) {
@@ -1103,7 +1103,7 @@ bool S3fsCurl::UploadMultipartPostCallback(S3fsCurl* s3fscurl)
       } else {
           s3fscurl->partdata.etag = header_str.substr(pos + 7, 32);  // ETag get md5 value
       }
-      S3FS_PRN_ERR("partdata.etag : %s", s3fscurl->partdata.etag.c_str());
+      S3FS_PRN_INFO("partdata.etag : %s", s3fscurl->partdata.etag.c_str());
   }
   s3fscurl->partdata.etaglist->at(s3fscurl->partdata.etagpos).assign(s3fscurl->partdata.etag);
   s3fscurl->partdata.uploaded = true;
@@ -1157,13 +1157,15 @@ int S3fsCurl::ParallelMultipartUploadWithoutPreRequest(const char* tpath, header
     // Loop for setup parallel upload(multipart) request.
     for(para_cnt = 0; para_cnt < S3fsCurl::max_parallel_cnt && 0 < remaining_bytes; para_cnt++, remaining_bytes -= chunk){
       // chunk size
-      chunk = remaining_bytes > S3fsCurl::multipart_size ? S3fsCurl::multipart_size : remaining_bytes;
+	  // if remaining_bytes less than 2*multipart_size, upload all remaining bytes,
+	  // in order to avoid sending part that less than S3fsCurl::multipart_size
+      chunk = remaining_bytes > 2 * S3fsCurl::multipart_size ? S3fsCurl::multipart_size : remaining_bytes;
 
       // s3fscurl sub object
       S3fsCurl* s3fscurl_para            = new S3fsCurl(true);
       s3fscurl_para->partdata.fd         = fd2;
       s3fscurl_para->partdata.startpos   = cur_pos;
-	    cur_pos += chunk;
+      cur_pos += chunk;
       s3fscurl_para->partdata.size       = chunk;
       s3fscurl_para->b_partdata_startpos = s3fscurl_para->partdata.startpos;
       s3fscurl_para->b_partdata_size     = s3fscurl_para->partdata.size;
@@ -2077,7 +2079,7 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   unsigned int md_len        = 0;
 
   string format_string_sha1 = s3fs_sha1_hex(sdata, sdata_len, &md, &md_len);
-  S3FS_PRN_ERR("format string sha1 : %s", format_string_sha1.c_str());
+  S3FS_PRN_INFO("format string sha1 : %s", format_string_sha1.c_str());
   string StringToSign;
   StringToSign += string("sha1\n");
   StringToSign += q_key_time + "\n";
@@ -2703,14 +2705,12 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
 {
   S3FS_PRN_INFO("[tpath=%s]", SAFESTRPTR(tpath));
 
-  S3FS_PRN_ERR("PreMultipartPostRequest");
   if(!tpath){
     return -1;
   }
   if(!CreateCurlHandle(true)){
     return -1;
   }
-  S3FS_PRN_ERR("PreMultipartPostRequest1");
   string resource;
   string turl;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
@@ -2775,7 +2775,6 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
     return result;
   }
 
-  S3FS_PRN_ERR("PreMultipartPostRequest3");
   // Parse XML body for UploadId
   if(!S3fsCurl::GetUploadId(upload_id)){
     delete bodydata;
