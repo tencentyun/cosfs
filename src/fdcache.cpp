@@ -882,7 +882,7 @@ bool FdEntity::GetStats(struct stat& st)
   }
   AutoLock auto_lock(&fdent_lock);
 
-  memset(&st, 0, sizeof(struct stat)); 
+  memset(&st, 0, sizeof(struct stat));
   if(-1 == fstat(fd, &st)){
     S3FS_PRN_ERR("fstat failed. errno(%d)", errno);
     return false;
@@ -1339,16 +1339,16 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
 
     /*
      * Make decision to do multi upload (or not) based upon file size
-     * 
+     *
      * According to the OSS spec:
      *  - 1 to 10,000 parts are allowed
      *  - minimum size of parts is 5MB (expect for the last part)
-     * 
+     *
      * For our application, we will define minimum part size to be 10MB (10 * 2^20 Bytes)
-     * minimum file size will be 64 GB - 2 ** 36 
-     * 
+     * minimum file size will be 64 GB - 2 ** 36
+     *
      * Initially uploads will be done serially
-     * 
+     *
      * If file is > 20MB, then multipart will kick in
      */
     if(pagelist.Size() > static_cast<size_t>(MAX_MULTIPART_CNT * S3fsCurl::GetMultipartSize())){
@@ -1484,29 +1484,40 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   ssize_t wsize;
 
   if(0 == upload_id.length()){
-    // check disk space
-    size_t restsize = pagelist.GetTotalUnloadedPageSize(0, start) + size;
-    if(FdManager::IsSafeDiskSpace(NULL, restsize)){
-      // enough disk space
-
-      // Load unitialized area which starts from 0 to (start + size) before writing.
-      if(0 < start && 0 != (result = Load(0, static_cast<size_t>(start)))){
-        S3FS_PRN_ERR("failed to load uninitialized area before writing(errno=%d)", result);
-        return static_cast<ssize_t>(result);
-      }
-    }else{
-      // no enough disk space
+    // upload file directly 
+    if (direct_upload) {
       if(0 != (result = NoCachePreMultipartPost())){
         S3FS_PRN_ERR("failed to switch multipart uploading with no cache(errno=%d)", result);
         return static_cast<ssize_t>(result);
       }
-      // start multipart uploading
-      if(0 != (result = NoCacheLoadAndPost(0, start))){
-        S3FS_PRN_ERR("failed to load uninitialized area and multipart uploading it(errno=%d)", result);
-        return static_cast<ssize_t>(result);
-      }
+
       mp_start = start;
       mp_size  = 0;
+    } else {
+      // check disk space
+      size_t restsize = pagelist.GetTotalUnloadedPageSize(0, start) + size;
+      if(FdManager::IsSafeDiskSpace(NULL, restsize)){
+        // enough disk space
+  
+        // Load unitialized area which starts from 0 to (start + size) before writing.
+        if(0 < start && 0 != (result = Load(0, static_cast<size_t>(start)))){
+          S3FS_PRN_ERR("failed to load uninitialized area before writing(errno=%d)", result);
+          return static_cast<ssize_t>(result);
+        }
+      }else{
+        // no enough disk space
+        if(0 != (result = NoCachePreMultipartPost())){
+          S3FS_PRN_ERR("failed to switch multipart uploading with no cache(errno=%d)", result);
+          return static_cast<ssize_t>(result);
+        }
+        // start multipart uploading
+        if(0 != (result = NoCacheLoadAndPost(0, start))){
+          S3FS_PRN_ERR("failed to load uninitialized area and multipart uploading it(errno=%d)", result);
+          return static_cast<ssize_t>(result);
+        }
+        mp_start = start;
+        mp_size  = 0;
+      }
     }
   }else{
     // alreay start miltipart uploading
@@ -1525,24 +1536,43 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   }
 
   // check multipart uploading
-  if(0 < upload_id.length()){
+  if(0 < upload_id.length()) {
     mp_size += static_cast<size_t>(wsize);
-    if(static_cast<size_t>(S3fsCurl::GetMultipartSize()) <= mp_size){
-      // over one multipart size
-      if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
-        S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
-        return result;
+    size_t part_size = static_cast<size_t>(S3fsCurl::GetMultipartSize());
+    if (direct_upload) {
+      if(10 * part_size <= mp_size) {
+        size_t transfer_size = (mp_size / static_cast<size_t>(S3fsCurl::GetMultipartSize())) * static_cast<size_t>(S3fsCurl::GetMultipartSize());
+        // over ten multipart size
+        if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
+          path.c_str(), orgmeta, fd, mp_start, transfer_size, upload_id, &etaglist))) {
+          return result;
+        }
+
+        if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + transfer_size))) {
+          S3FS_PRN_ERR("failed to truncate file(%d).", fd);
+          return -EIO;
+        }
+        mp_start += transfer_size;
+        mp_size   = mp_size - transfer_size;
       }
-      // [NOTE]
-      // truncate file to zero and set length to part offset + size
-      // after this, file length is (offset + size), but file does not use any disk space.
-      //
-      if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + mp_size))){
-        S3FS_PRN_ERR("failed to truncate file(%d).", fd);
-        return -EIO;
+    } else {
+      if(part_size <= mp_size){
+        // over one multipart size
+        if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
+          S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
+          return result;
+        }
+        // [NOTE]
+        // truncate file to zero and set length to part offset + size
+        // after this, file length is (offset + size), but file does not use any disk space.
+        //
+        if(-1 == ftruncate(fd, 0) || -1 == ftruncate(fd, (mp_start + mp_size))){
+          S3FS_PRN_ERR("failed to truncate file(%d).", fd);
+          return -EIO;
+        }
+        mp_start += mp_size;
+        mp_size   = 0;
       }
-      mp_start += mp_size;
-      mp_size   = 0;
     }
   }
 

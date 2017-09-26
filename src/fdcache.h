@@ -21,6 +21,8 @@
 #include <sys/statvfs.h>
 #include "curl.h"
 
+extern bool direct_upload;
+
 //------------------------------------------------
 // CacheFileStat
 //------------------------------------------------

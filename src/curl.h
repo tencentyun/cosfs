@@ -28,12 +28,12 @@
 //----------------------------------------------
 // class BodyData
 //----------------------------------------------
-// memory class for curl write memory callback 
+// memory class for curl write memory callback
 //
 class BodyData
 {
   private:
-    char* text;    
+    char* text;
     size_t lastpos;
     size_t bufsize;
 
@@ -180,7 +180,7 @@ enum sse_type_t {
 //
 class S3fsCurl
 {
-    friend class S3fsMultiCurl;  
+    friend class S3fsMultiCurl;
 
   private:
     enum REQTYPE {
@@ -315,6 +315,9 @@ class S3fsCurl
     // class methods
     static bool InitS3fsCurl(const char* MimeFile = NULL);
     static bool DestroyS3fsCurl(void);
+	  static int ParallelMultipartUploadWithoutPreRequest(const char* tpath, headers_t& meta, int fd,
+                                                        off_t offset, size_t size, std::string upload_id,
+													                              etaglist_t* list);
     static int ParallelMultipartUploadRequest(const char* tpath, headers_t& meta, int fd);
     static int ParallelGetObjectRequest(const char* tpath, int fd, off_t start, ssize_t size);
     static bool CheckRAMCredentialUpdate(void);
