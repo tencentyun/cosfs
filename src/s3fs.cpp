@@ -4536,19 +4536,19 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     }
 
     if (0 == STR2NCMP(arg, "direct_upload=")) {
-	  const char *p = strchr(arg, '=') + sizeof(char);
-	  const char *temp = p;
+      const char *p = strchr(arg, '=') + sizeof(char);
+      const char *temp = p;
       while (*temp) {
         if (!isdigit(*(temp++))) {
           printf("Illegal input direct_upload number.\n");
-		  exit(EXIT_FAILURE);
-	    }
-	  }
+          exit(EXIT_FAILURE);
+        }
+      }
       direct_upload_part_num = atoi(p);
-	  if (direct_upload_part_num <= 0) {
+      if (direct_upload_part_num <= 0) {
         printf("direct_upload_part_num must be bigger than 0.\n");
-		exit(EXIT_FAILURE);
-	  }
+        exit(EXIT_FAILURE);
+      }
       direct_upload = true;
       return 0;
     }

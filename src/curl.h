@@ -315,9 +315,9 @@ class S3fsCurl
     // class methods
     static bool InitS3fsCurl(const char* MimeFile = NULL);
     static bool DestroyS3fsCurl(void);
-	  static int ParallelMultipartUploadWithoutPreRequest(const char* tpath, headers_t& meta, int fd,
+    static int ParallelMultipartUploadWithoutPreRequest(const char* tpath, headers_t& meta, int fd,
                                                         off_t offset, size_t size, std::string upload_id,
-													                              etaglist_t* list);
+                                                        etaglist_t* list);
     static int ParallelMultipartUploadRequest(const char* tpath, headers_t& meta, int fd);
     static int ParallelGetObjectRequest(const char* tpath, int fd, off_t start, ssize_t size);
     static bool CheckRAMCredentialUpdate(void);

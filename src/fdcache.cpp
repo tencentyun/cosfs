@@ -1540,7 +1540,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   if(0 < upload_id.length()) {
     mp_size += static_cast<size_t>(wsize);
     size_t part_size = static_cast<size_t>(S3fsCurl::GetMultipartSize());
-	bool need_trunc = false;
+    bool need_trunc = false;
     if (direct_upload && direct_upload_part_num * part_size <= mp_size) {
       // over direct_upload_part_num multipart size
       if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
@@ -1557,7 +1557,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
       need_trunc = true;
     }
 
-	if (need_trunc) {
+    if (need_trunc) {
       // [NOTE]
       // truncate file to zero and set length to part offset + size
       // after this, file length is (offset + size), but file does not use any disk space.
@@ -1568,13 +1568,13 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
       }
       mp_start += mp_size;
       mp_size   = 0;
-	}
+    }
   }
 
   // Update the stat cache.
   bool success = StatCache::getStatCacheData()->IncSize(path, wsize);
   if (!success) {
-	  S3FS_PRN_ERR("failed to update file size in stat cache(path=%s, size=%ld).", path.c_str(), wsize);
+    S3FS_PRN_ERR("failed to update file size in stat cache(path=%s, size=%ld).", path.c_str(), wsize);
   }
   return wsize;
 }
