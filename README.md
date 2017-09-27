@@ -136,3 +136,28 @@ Licensed under the GNU GPL version 2
 * 为什么之前可用写文件，突然不能写了？
 
    由于cos鉴权产品策略调整，所以老版本的cosfs工具会导致策略校验不过，因此需要拉取最新的cosfs工具重新mount
+
+
+* 在centos6.5及较低版本，提示fuse版本太低，该如何解决？
+
+  如在configure操作时，提示
+  ```hecking for common_lib_checking... configure: error: Package requirements (fuse >= 2.8.4 libcurl >= 7.0 libxml-2.0 >=    2.6) were not met:
+
+Requested 'fuse >= 2.8.4' but version of fuse is 2.8.3```
+
+   此时，你需要来手动安装fuse版本，具体步骤
+
+   ```
+  # yum remove -y fuse
+# wget https://github.com/libfuse/libfuse/releases/download/fuse_2_9_4/fuse-2.8.4.tar.gz
+# tar -zxvf fuse-2.8.4.tar.gz
+# cd fuse-2.8.4
+# ./configure
+# make
+# make install
+# export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig/:/usr/local/lib/pkgconfig
+# modprobe fuse
+# echo "/usr/local/lib" >> /etc/ld.so.conf
+# ldconfig
+# pkg-config --modversion fuse   
+2.8.4   //看到版本表示安装成功  ```
