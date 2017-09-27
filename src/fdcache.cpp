@@ -1541,14 +1541,16 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
     mp_size += static_cast<size_t>(wsize);
     size_t part_size = static_cast<size_t>(S3fsCurl::GetMultipartSize());
     bool need_trunc = false;
-    if (direct_upload && direct_upload_part_num * part_size <= mp_size) {
-      // over direct_upload_part_num multipart size
-      if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
-        path.c_str(), orgmeta, fd, mp_start, mp_size, upload_id, &etaglist))) {
-        return result;
+    if (direct_upload) {
+      if (direct_upload_part_num * part_size <= mp_size) {
+        // over direct_upload_part_num multipart size
+        if (0 != (result = S3fsCurl::ParallelMultipartUploadWithoutPreRequest(
+          path.c_str(), orgmeta, fd, mp_start, mp_size, upload_id, &etaglist))) {
+          return result;
+        }
+        need_trunc = true;
       }
-      need_trunc = true;
-    } else if(part_size <= mp_size) {
+    } else if (part_size <= mp_size) {
       // over one multipart size
       if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
         S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
