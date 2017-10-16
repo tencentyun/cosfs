@@ -15,6 +15,27 @@ cosfs 基于s3fs 构建，具有s3fs 的全部功能。主要功能包括：
 * MD5 校验保证数据完整性。
 
 ### 安装
+ 
+#### 预编译安装
+COS为了方便用户安装，提供了相应操作系统的安装包
+ 
+* ubuntu-16.04 ubuntu-14.04
+* centos6.5/centos7.0
+ 
+可以从[版本发布页面](https://github.com/tencentyun/cosfs/releases)来下载安装
+
+centos6.5+ 安装方式
+ 
+```
+sudo yum localinstall release-cosfs-package
+```
+
+ubuntu 安装方式
+
+```
+sudo apt-get update; sudo apt-get install gdebi-core
+sudo  gdebi release-cosfs-package
+```
 
 #### 源码安装
 
