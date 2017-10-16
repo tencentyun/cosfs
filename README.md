@@ -41,19 +41,21 @@ sudo  gdebi release-cosfs-package
 
 如果没有找到对应的安装包，您也可以自行编译安装。编译前请先安装下列依赖库：
 
-Ubuntu 14.04:
+Ubuntu 14.04+:
 
 ```
 sudo apt-get install automake autotools-dev g++ git libcurl4-gnutls-dev \
                      libfuse-dev libssl-dev libxml2-dev make pkg-config
 ```
 
-CentOS 7.0:
+CentOS 6.5+:
 
 ```
 sudo yum install automake gcc-c++ git libcurl-devel libxml2-devel \
                  fuse-devel make openssl-devel
 ```
+ 
+如果在编译过程中遇到提示fuse版本低于2.8.4，请参考常见问题来解决
 
 然后您可以在github上下载源码并编译安装：
 
