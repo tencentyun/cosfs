@@ -28,6 +28,7 @@ centos6.5+ 安装方式
  
 ```
 sudo yum localinstall release-cosfs-package
+其中 ， release-cosfs-package 需要改成用户系统对应的安装包的名称，如 release-cosfs-1.0.1-centos6.5.x86_64.rpm
 ```
 
 ubuntu 安装方式
