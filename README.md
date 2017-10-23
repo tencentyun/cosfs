@@ -173,7 +173,7 @@ Licensed under the GNU GPL version 2
    此时，你需要来手动安装fuse版本，具体步骤
 
    ```
-     # yum remove -y fuse
+     # yum remove -y fuse-devel
      # wget https://github.com/libfuse/libfuse/releases/download/fuse_2_9_4/fuse-2.8.4.tar.gz
      # tar -zxvf fuse-2.8.4.tar.gz
      # cd fuse-2.8.4
