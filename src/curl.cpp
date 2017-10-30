@@ -2558,10 +2558,10 @@ int S3fsCurl::CheckBucket(void)
   }
   string resource;
   string turl;
-  MakeUrlResource(get_realpath("/").c_str(), resource, turl);
+  MakeUrlResource("/", resource, turl);
 
   url             = prepare_url(turl.c_str());
-  path            = get_realpath("/");
+  path            = "/";
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
