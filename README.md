@@ -15,24 +15,48 @@ cosfs 基于s3fs 构建，具有s3fs 的全部功能。主要功能包括：
 * MD5 校验保证数据完整性。
 
 ### 安装
+ 
+#### 预编译安装
+COS为了方便用户安装，提供了相应操作系统的安装包
+ 
+* ubuntu-16.04 ubuntu-14.04
+* centos6.5/centos7.0
+ 
+可以从[版本发布页面](https://github.com/tencentyun/cosfs/releases)来下载安装
+
+centos6.5+ 安装方式
+ 
+```
+sudo yum localinstall release-cosfs-package
+其中 ， release-cosfs-package 需要改成用户系统对应的安装包的名称，如 release-cosfs-1.0.1-centos6.5.x86_64.rpm
+```
+
+ubuntu 安装方式
+
+```
+sudo apt-get update; sudo apt-get install gdebi-core
+sudo  gdebi release-cosfs-package
+```
 
 #### 源码安装
 
 如果没有找到对应的安装包，您也可以自行编译安装。编译前请先安装下列依赖库：
 
-Ubuntu 14.04:
+Ubuntu 14.04+:
 
 ```
 sudo apt-get install automake autotools-dev g++ git libcurl4-gnutls-dev \
                      libfuse-dev libssl-dev libxml2-dev make pkg-config
 ```
 
-CentOS 7.0:
+CentOS 6.5+:
 
 ```
 sudo yum install automake gcc-c++ git libcurl-devel libxml2-devel \
                  fuse-devel make openssl-devel
 ```
+ 
+如果在编译过程中遇到提示fuse版本低于2.8.4，请参考常见问题来解决
 
 然后您可以在github上下载源码并编译安装：
 
@@ -141,23 +165,25 @@ Licensed under the GNU GPL version 2
 * 在centos6.5及较低版本，提示fuse版本太低，该如何解决？
 
   如在configure操作时，提示
-  ```hecking for common_lib_checking... configure: error: Package requirements (fuse >= 2.8.4 libcurl >= 7.0 libxml-2.0 >=    2.6) were not met:
-
-Requested 'fuse >= 2.8.4' but version of fuse is 2.8.3```
+  ```
+    hecking for common_lib_checking... configure: error: Package requirements (fuse >= 2.8.4 libcurl >= 7.0 libxml-2.0 >=    2.6) were not met:
+    Requested 'fuse >= 2.8.4' but version of fuse is 2.8.3 
+    ```
 
    此时，你需要来手动安装fuse版本，具体步骤
 
    ```
-  # yum remove -y fuse
-# wget https://github.com/libfuse/libfuse/releases/download/fuse_2_9_4/fuse-2.8.4.tar.gz
-# tar -zxvf fuse-2.8.4.tar.gz
-# cd fuse-2.8.4
-# ./configure
-# make
-# make install
-# export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig/:/usr/local/lib/pkgconfig
-# modprobe fuse
-# echo "/usr/local/lib" >> /etc/ld.so.conf
-# ldconfig
-# pkg-config --modversion fuse   
-2.8.4   //看到版本表示安装成功  ```
+     # yum remove -y fuse-devel
+     # wget https://github.com/libfuse/libfuse/releases/download/fuse_2_9_4/fuse-2.8.4.tar.gz
+     # tar -zxvf fuse-2.8.4.tar.gz
+     # cd fuse-2.8.4
+     # ./configure
+     # make
+     # make install
+     # export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig/:/usr/local/lib/pkgconfig
+     # modprobe fuse
+     # echo "/usr/local/lib" >> /etc/ld.so.conf
+     # ldconfig
+     # pkg-config --modversion fuse   
+     2.8.4   //看到版本表示安装成功  
+   ```
