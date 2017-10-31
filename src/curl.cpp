@@ -307,7 +307,7 @@ mimes_t          S3fsCurl::mimeTypes;
 int              S3fsCurl::max_parallel_cnt    = 10;              // default
 off_t            S3fsCurl::multipart_size      = MULTIPART_SIZE; // default
 bool             S3fsCurl::is_sigv4            = true;           // default
-const string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5" + string(VERSION);
+const string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
 
 //-------------------------------------------------------------------
 // Class methods for S3fsCurl

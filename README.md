@@ -187,3 +187,8 @@ Licensed under the GNU GPL version 2
      # pkg-config --modversion fuse   
      2.8.4   //看到版本表示安装成功  
    ```
+
+* 为什么cosfs在正常使用过程中，突然退出了，重新挂载显示"unable to access MOUNTPOINT /path/to/mountpoint: Transport endpoint is not connected"
+
+  如果cosfs不是被强制Kill掉，那么检查机器上的fuse版本是否低于2.9.4，libfuse在低于2.9.4版本的情况下可能会导致cosfs异常退出。
+  建议更新fuse版本，或下载cosfs V1.0.2及以上版本。下载地址: https://github.com/tencentyun/cosfs/releases
