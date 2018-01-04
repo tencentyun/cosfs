@@ -192,3 +192,10 @@ Licensed under the GNU GPL version 2
 
   如果cosfs不是被强制Kill掉，那么检查机器上的fuse版本是否低于2.9.4，libfuse在低于2.9.4版本的情况下可能会导致cosfs异常退出。
   建议更新fuse版本，或下载cosfs V1.0.2及以上版本。下载地址: https://github.com/tencentyun/cosfs/releases
+
+* 为什么通过cosfs上传的文件Content-Type全是"application/octet-stream"?
+  
+  cosfs是根据/etc/mime.types和上传的文件后缀进行比对，自动设置Content-Type，建议查看机器上是否存在该文件。
+  对于ubuntu可以通过sudo apt-get install mime-support来添加
+  对于centos可以通过sudo yum install mailcap来添加
+  或者手动添加，每种格式一行，例如：image/png png
