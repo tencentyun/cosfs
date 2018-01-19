@@ -442,6 +442,7 @@ class S3fsMultiCurl
     bool ClearEx(bool is_all);
     int MultiPerform(void);
     int MultiRead(void);
+    static void* RequestPerformWrapper(void* arg);
 
   public:
     S3fsMultiCurl();
