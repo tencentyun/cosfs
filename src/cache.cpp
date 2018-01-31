@@ -165,7 +165,7 @@ bool StatCache::GetStat(string& key, struct stat* pst, headers_t* meta, bool ove
         S3FS_PRN_DBG("stat cache not hit by ETag[path=%s][time=%jd][hit count=%lu][ETag(%s)!=(%s)]",
           strpath.c_str(), (intmax_t)(ent->cache_date), ent->hit_count, petag ? petag : "null", ent->meta["ETag"].c_str());
       }else{
-        // hit 
+        // hit
         S3FS_PRN_DBG("stat cache hit [path=%s][time=%jd][hit count=%lu]", strpath.c_str(), (intmax_t)(ent->cache_date), ent->hit_count);
 
         if(pst!= NULL){
@@ -307,7 +307,7 @@ bool StatCache::IncSize(const std::string& key, ssize_t sz)
 		stat_cache_entry* entry = iter->second;
 		entry->stbuf.st_size += sz;
 		S3FS_PRN_INFO3(
-				"Update file size in stat cache. [path=%s][size=%ld][delta=%ld]", 
+				"Update file size in stat cache. [path=%s][size=%ld][delta=%ld]",
 				key.c_str(), entry->stbuf.st_size, sz);
 	}
 
