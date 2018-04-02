@@ -882,7 +882,7 @@ bool FdEntity::GetStats(struct stat& st)
   }
   AutoLock auto_lock(&fdent_lock);
 
-  memset(&st, 0, sizeof(struct stat)); 
+  memset(&st, 0, sizeof(struct stat));
   if(-1 == fstat(fd, &st)){
     S3FS_PRN_ERR("fstat failed. errno(%d)", errno);
     return false;
@@ -1027,6 +1027,7 @@ int FdEntity::Load(off_t start, size_t size)
 
       // download
       if(static_cast<size_t>(2 * S3fsCurl::GetMultipartSize()) < need_load_size && !nomultipart){ // default 20MB
+#endif
         // parallel request
         // Additional time is needed for large files
         time_t backup = 0;
@@ -1339,16 +1340,16 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
 
     /*
      * Make decision to do multi upload (or not) based upon file size
-     * 
+     *
      * According to the OSS spec:
      *  - 1 to 10,000 parts are allowed
      *  - minimum size of parts is 5MB (expect for the last part)
-     * 
+     *
      * For our application, we will define minimum part size to be 10MB (10 * 2^20 Bytes)
-     * minimum file size will be 64 GB - 2 ** 36 
-     * 
+     * minimum file size will be 64 GB - 2 ** 36
+     *
      * Initially uploads will be done serially
-     * 
+     *
      * If file is > 20MB, then multipart will kick in
      */
     if(pagelist.Size() > static_cast<size_t>(MAX_MULTIPART_CNT * S3fsCurl::GetMultipartSize())){
