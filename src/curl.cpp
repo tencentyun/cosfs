@@ -1797,6 +1797,7 @@ bool S3fsCurl::RemakeHandle(void)
 //
 int S3fsCurl::RequestPerform(void)
 {
+  static const int max_retry_time_in_s = 10;
   // Add the user-agent info
   requestHeaders = curl_slist_sort_insert(requestHeaders, "User-Agent", skUserAgent.c_str());
   if(IS_S3FS_LOG_DBG()){
@@ -1813,6 +1814,12 @@ int S3fsCurl::RequestPerform(void)
 	//curl_easy_setopt(hCurl, CURLOPT_HEADERFUNCTION, HeaderCallback);
     CURLcode curlCode = curl_easy_perform(hCurl);
 
+	// exponential backoff until max_retry_time_in_s
+	int retry_sleep_time_in_s = 2 * (retries - retrycnt + 1);
+	if (retry_sleep_time_in_s > max_retry_time_in_s) {
+		retry_sleep_time_in_s = max_retry_time_in_s;
+	}
+
     // Check result
     switch(curlCode){
       case CURLE_OK:
@@ -1827,7 +1834,7 @@ int S3fsCurl::RequestPerform(void)
         }
         if(500 <= LastResponseCode){
           S3FS_PRN_INFO3("HTTP response code %ld", LastResponseCode);
-          sleep(4);
+          sleep(retry_sleep_time_in_s);
           break;
         }
 
@@ -1857,53 +1864,53 @@ int S3fsCurl::RequestPerform(void)
 
       case CURLE_WRITE_ERROR:
         S3FS_PRN_ERR("### CURLE_WRITE_ERROR");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_OPERATION_TIMEDOUT:
         S3FS_PRN_ERR("### CURLE_OPERATION_TIMEDOUT");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_COULDNT_RESOLVE_HOST:
         S3FS_PRN_ERR("### CURLE_COULDNT_RESOLVE_HOST");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_COULDNT_CONNECT:
         S3FS_PRN_ERR("### CURLE_COULDNT_CONNECT");
-        sleep(4);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_GOT_NOTHING:
         S3FS_PRN_ERR("### CURLE_GOT_NOTHING");
-        sleep(4);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_ABORTED_BY_CALLBACK:
         S3FS_PRN_ERR("### CURLE_ABORTED_BY_CALLBACK");
-        sleep(4);
+        // sleep(retry_sleep_time_in_s);
         S3fsCurl::curl_times[hCurl] = time(0);
         break;
 
       case CURLE_PARTIAL_FILE:
         S3FS_PRN_ERR("### CURLE_PARTIAL_FILE");
-        sleep(4);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_SEND_ERROR:
         S3FS_PRN_ERR("### CURLE_SEND_ERROR");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_RECV_ERROR:
         S3FS_PRN_ERR("### CURLE_RECV_ERROR");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_SSL_CONNECT_ERROR:
         S3FS_PRN_ERR("### CURLE_SSL_CONNECT_ERROR");
-        sleep(2);
+        sleep(retry_sleep_time_in_s);
         break;
 
       case CURLE_SSL_CACERT:
