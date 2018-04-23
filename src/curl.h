@@ -213,6 +213,7 @@ class S3fsCurl
     static bool             is_ssl_session_cache;
     static long             connect_timeout;
     static time_t           readwrite_timeout;
+    static time_t           write_timeout;
     static int              retries;
     static bool             is_public_bucket;
     static std::string      default_acl;             // TODO: to enum
@@ -326,7 +327,9 @@ class S3fsCurl
     static bool SetSslSessionCache(bool isCache);
     static long SetConnectTimeout(long timeout);
     static time_t SetReadwriteTimeout(time_t timeout);
+    static time_t SetWriteTimeout(time_t timeout);
     static time_t GetReadwriteTimeout(void) { return S3fsCurl::readwrite_timeout; }
+    static time_t GetWriteTimeout(void) { return S3fsCurl::write_timeout; }
     static int SetRetries(int count);
     static bool SetPublicBucket(bool flag);
     static bool IsPublicBucket(void) { return S3fsCurl::is_public_bucket; }

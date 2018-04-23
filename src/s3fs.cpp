@@ -4442,6 +4442,11 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       S3fsCurl::SetReadwriteTimeout(rwtimeout);
       return 0;
     }
+    if(0 == STR2NCMP(arg, "write_timeout=")){
+      time_t rwtimeout = static_cast<time_t>(s3fs_strtoofft(strchr(arg, '=') + sizeof(char)));
+      S3fsCurl::SetWriteTimeout(rwtimeout);
+      return 0;
+    }
     if(0 == STR2NCMP(arg, "max_stat_cache_size=")){
       unsigned long cache_size = static_cast<unsigned long>(s3fs_strtoofft(strchr(arg, '=') + sizeof(char)));
       StatCache::getStatCacheData()->SetCacheSize(cache_size);

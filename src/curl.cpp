@@ -285,6 +285,7 @@ bool             S3fsCurl::is_dns_cache        = true; // default
 bool             S3fsCurl::is_ssl_session_cache= true; // default
 long             S3fsCurl::connect_timeout     = 300;  // default
 time_t           S3fsCurl::readwrite_timeout   = 60;   // default
+time_t           S3fsCurl::write_timeout   = 10;   // default
 int              S3fsCurl::retries             = 3;    // default
 bool             S3fsCurl::is_public_bucket    = false;
 string           S3fsCurl::default_acl         = "public-read";
@@ -510,10 +511,10 @@ int S3fsCurl::CurlProgress(void *clientp, double dltotal, double dlnow, double u
     S3fsCurl::curl_progress[curl] = p;
   }else{
     // timeout?
-    if(now - S3fsCurl::curl_times[curl] > readwrite_timeout){
+    if(now - S3fsCurl::curl_times[curl] > write_timeout){
       pthread_mutex_unlock(&S3fsCurl::curl_handles_lock);
-      S3FS_PRN_ERR("timeout now: %jd, curl_times[curl]: %jd, readwrite_timeout: %jd",
-                      (intmax_t)now, (intmax_t)(S3fsCurl::curl_times[curl]), (intmax_t)readwrite_timeout);
+      S3FS_PRN_ERR("timeout now: %jd, curl_times[curl]: %jd, write_timeout: %jd",
+                      (intmax_t)now, (intmax_t)(S3fsCurl::curl_times[curl]), (intmax_t)write_timeout);
       return CURLE_ABORTED_BY_CALLBACK;
     }
   }
@@ -811,6 +812,13 @@ time_t S3fsCurl::SetReadwriteTimeout(time_t timeout)
 {
   time_t old = S3fsCurl::readwrite_timeout;
   S3fsCurl::readwrite_timeout = timeout;
+  return old;
+}
+
+time_t S3fsCurl::SetWriteTimeout(time_t timeout)
+{
+  time_t old = S3fsCurl::write_timeout;
+  S3fsCurl::write_timeout = timeout;
   return old;
 }
 
