@@ -75,13 +75,13 @@ sudo make install
 注意这个文件的权限必须正确设置，建议设为640。
 
 ```
-echo my-bucket:my-access-key-id:my-access-key-secret > /etc/passwd-cosfs
+echo my-bucket:my-access-key-id:my-access-key-secret > /etc/passwd-cosfs #my-bucket的格式类似bucketprefix-123456789
 chmod 640 /etc/passwd-cosfs
 ```
 
-将cos bucket mount到指定目录,注意 需要在bucke前面指定*appid*
+将cos bucket mount到指定目录
 ```
-cosfs my-appid:my-bucket my-mount-point -ourl=my-cos-endpoint
+cosfs my-bucket my-mount-point -ourl=my-cos-endpoint
 ```
 #### 示例
 
@@ -94,7 +94,7 @@ cn-east 对应华东上海地域
 echo my-bucket:faint:123 > /etc/passwd-cosfs
 chmod 640 /etc/passwd-cosfs
 mkdir /tmp/cosfs
-cosfs appid:my-bucket /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
+cosfs my-bucket /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
 ```
 -ouse_cache 指定了使用本地cache来缓存临时文件，进一步提高性能，如果不需要本地cache或者本地磁盘容量有限，可不指定该选项
 
@@ -109,7 +109,7 @@ fusermount -u /tmp/cosfs # non-root user
 
 ```
 参考挂载示例
-./cosfs 1252448703:rabbitliu /mnt/rabbit/ -ourl=http://cn-south.myqcloud.com -odbglevel=info -oallow_other -ocam_role=sts -opasswd_file=/tmp/passwd-jimmy-sts
+./cosfs rabbitliu-1252448703 /mnt/rabbit/ -ourl=http://cn-south.myqcloud.com -odbglevel=info -oallow_other -ocam_role=sts -opasswd_file=/tmp/passwd-jimmy-sts
 
 其中 -ocam_role=sts 是必须的参数
 
@@ -152,11 +152,11 @@ Licensed under the GNU GPL version 2
 ### 常见问题
 * 如何挂载目录
    在挂载命令的时候，可以指定目录，如
-   
-   cosfs appid:my-bucket:/my-dir /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
+
+   cosfs my-bucket:/my-dir /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
    注意，my-dir必须以/开头
-   
-   
+  
+
 * 为什么之前可用写文件，突然不能写了？
 
    由于cos鉴权产品策略调整，所以老版本的cosfs工具会导致策略校验不过，因此需要拉取最新的cosfs工具重新mount
@@ -167,7 +167,7 @@ Licensed under the GNU GPL version 2
   如在configure操作时，提示
   ```
     hecking for common_lib_checking... configure: error: Package requirements (fuse >= 2.8.4 libcurl >= 7.0 libxml-2.0 >=    2.6) were not met:
-    Requested 'fuse >= 2.8.4' but version of fuse is 2.8.3 
+    Requested 'fuse >= 2.8.4' but version of fuse is 2.8.3
     ```
 
    此时，你需要来手动安装fuse版本，具体步骤
@@ -184,8 +184,8 @@ Licensed under the GNU GPL version 2
      # modprobe fuse
      # echo "/usr/local/lib" >> /etc/ld.so.conf
      # ldconfig
-     # pkg-config --modversion fuse   
-     2.8.4   //看到版本表示安装成功  
+     # pkg-config --modversion fuse
+     2.8.4   //看到版本表示安装成功
    ```
 
 * 为什么cosfs在正常使用过程中，突然退出了，重新挂载显示"unable to access MOUNTPOINT /path/to/mountpoint: Transport endpoint is not connected"
@@ -194,7 +194,7 @@ Licensed under the GNU GPL version 2
   建议更新fuse版本，或下载cosfs V1.0.2及以上版本。下载地址: https://github.com/tencentyun/cosfs/releases
 
 * 为什么通过cosfs上传的文件Content-Type全是"application/octet-stream"?
-  
+
   cosfs是根据/etc/mime.types和上传的文件后缀进行比对，自动设置Content-Type，建议查看机器上是否存在该文件。
   对于ubuntu可以通过sudo apt-get install mime-support来添加
   对于centos可以通过sudo yum install mailcap来添加
