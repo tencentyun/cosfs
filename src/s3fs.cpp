@@ -4147,12 +4147,12 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
 				  appid = bucket_appid.substr(found + 1);
 				  mount_prefix = split_vec[1];
 			  } else {
-				  bucket = split_vec[0];
-				  appid = split_vec[1];
+				  appid = split_vec[0];
+				  bucket = split_vec[1];
 			  }
 		  } else if (split_vec.size() >= 3) {
-			  bucket = split_vec[0];
-			  appid = split_vec[1];
+			  appid = split_vec[0];
+			  bucket = split_vec[1];
 			  mount_prefix = split_vec[2];
 		  }
 		  // remove trailing slash
