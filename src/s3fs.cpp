@@ -4540,6 +4540,7 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       AdditionalHeader::get()->Dump();
       return 0;
     }
+
     if(0 == strcmp(arg, "noxmlns")){
       noxmlns = true;
       return 0;
@@ -4645,6 +4646,12 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     if(0 == STR2NCMP(arg, "secretAccessKey=")){
       S3FS_PRN_EXIT("option secretAccessKey is no longer supported.");
       return -1;
+    }
+
+    // noxmlns defalut is true
+    if(0 == strcmp(arg, "xmlns")) {
+        noxmlns = false;
+        return 0;
     }
   }
   return 1;
