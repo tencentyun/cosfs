@@ -2018,14 +2018,11 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   unsigned int sign_key_len = 0;
   s3fs_HMAC(key, key_len, kdata, q_key_time.size(), &sign_key_raw, &sign_key_len);
   std::string sign_key = s3fs_hex(sign_key_raw, sign_key_len);
-  S3FS_PRN_INFO(" q-key_time is %s, new sign key is : %s", q_key_time.c_str(), sign_key.c_str());
 
   string FormatString;
   FormatString += lower(method) + "\n";
   FormatString += resource + "\n\n"; // no params
   FormatString += get_canonical_headers(requestHeaders); // \n has been append
-
-  S3FS_PRN_INFO("Format string is : %s", FormatString.c_str());
 
   const unsigned char* sdata = reinterpret_cast<const unsigned char*>(FormatString.data());
   int sdata_len              = FormatString.size();
@@ -2033,7 +2030,6 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   unsigned int md_len        = 0;
 
   string format_string_sha1 = s3fs_sha1_hex(sdata, sdata_len, &md, &md_len);
-  S3FS_PRN_ERR("format string sha1 : %s", format_string_sha1.c_str());
   string StringToSign;
   StringToSign += string("sha1\n");
   StringToSign += q_key_time + "\n";
@@ -2044,7 +2040,6 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   s3fs_HMAC(sign_key.data(), sign_key.size(), reinterpret_cast<const unsigned char*>(StringToSign.data()), StringToSign.size(), &sign_data, &sign_len);
   string sign_data_hex = s3fs_hex(sign_data, sign_len);
 
-  S3FS_PRN_INFO("string to sign %s", StringToSign.c_str());
   Signature += "q-sign-algorithm=sha1&";
   Signature += string("q-ak=") + S3fsCurl::COSAccessKeyId + "&";
   Signature += string("q-sign-time=") + q_key_time + "&";
