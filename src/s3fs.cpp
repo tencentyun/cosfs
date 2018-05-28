@@ -907,6 +907,7 @@ static int s3fs_mknod(const char *path, mode_t mode, dev_t rdev)
   if(NULL == (pcxt = fuse_get_context())){
     return -EIO;
   }
+  S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
 
   if(0 != (result = create_file_object(path, mode, pcxt->uid, pcxt->gid))){
     S3FS_PRN_ERR("could not create object for special file(result=%d)", result);
@@ -928,6 +929,7 @@ static int s3fs_create(const char* path, mode_t mode, struct fuse_file_info* fi)
   if(NULL == (pcxt = fuse_get_context())){
     return -EIO;
   }
+  S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
 
   // check parent directory attribute.
   if(0 != (result = check_parent_object_access(path, X_OK))){
@@ -993,6 +995,7 @@ static int s3fs_mkdir(const char* path, mode_t mode)
   if(NULL == (pcxt = fuse_get_context())){
     return -EIO;
   }
+  S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
 
   // check parent directory attribute.
   if(0 != (result = check_parent_object_access(path, W_OK | X_OK))){
@@ -1017,6 +1020,11 @@ static int s3fs_unlink(const char* path)
   int result;
 
   S3FS_PRN_INFO("[path=%s]", path);
+
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 != (result = check_parent_object_access(path, W_OK | X_OK))){
     return result;
@@ -1052,6 +1060,11 @@ static int s3fs_rmdir(const char* path)
   struct stat stbuf;
 
   S3FS_PRN_INFO("[path=%s]", path);
+
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 != (result = check_parent_object_access(path, W_OK | X_OK))){
     return result;
@@ -1111,6 +1124,8 @@ static int s3fs_symlink(const char* from, const char* to)
   if(NULL == (pcxt = fuse_get_context())){
     return -EIO;
   }
+  S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+
   if(0 != (result = check_parent_object_access(to, W_OK | X_OK))){
     return result;
   }
@@ -1474,6 +1489,11 @@ static int s3fs_chmod(const char* path, mode_t mode)
 
   S3FS_PRN_INFO("[path=%s][mode=%04o]", path, mode);
 
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change mode for mount point.");
     return -EIO;
@@ -1539,6 +1559,11 @@ static int s3fs_chmod_nocopy(const char* path, mode_t mode)
   int         nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO1("[path=%s][mode=%04o]", path, mode);
+
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change mode for maount point.");
@@ -1620,6 +1645,11 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
 
   S3FS_PRN_INFO("[path=%s][uid=%u][gid=%u]", path, (unsigned int)uid, (unsigned int)gid);
 
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change owner for maount point.");
     return -EIO;
@@ -1700,6 +1730,10 @@ static int s3fs_chown_nocopy(const char* path, uid_t uid, gid_t gid)
   int         nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO1("[path=%s][uid=%u][gid=%u]", path, (unsigned int)uid, (unsigned int)gid);
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change owner for maount point.");
@@ -1790,6 +1824,10 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
   int nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO("[path=%s][mtime=%jd]", path, (intmax_t)(ts[1].tv_sec));
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change mtime for maount point.");
@@ -1857,6 +1895,10 @@ static int s3fs_utimens_nocopy(const char* path, const struct timespec ts[2])
   int         nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO1("[path=%s][mtime=%s]", path, str(ts[1].tv_sec).c_str());
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 == strcmp(path, "/")){
     S3FS_PRN_ERR("Could not change mtime for mount point.");
@@ -1971,6 +2013,8 @@ static int s3fs_truncate(const char* path, off_t size)
     if(NULL == (pcxt = fuse_get_context())){
       return -EIO;
     }
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+
     meta["Content-Type"]     = string("application/octet-stream"); // Static
     meta["x-cos-meta-mode"]  = str(S_IFLNK | S_IRWXU | S_IRWXG | S_IRWXO);
     meta["x-cos-meta-mtime"] = str(time(NULL));
@@ -2004,6 +2048,10 @@ static int s3fs_open(const char* path, struct fuse_file_info* fi)
   bool needs_flush = false;
 
   S3FS_PRN_INFO("[path=%s][flags=%d]", path, fi->flags);
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   // clear stat for reading fresh stat.
   // (if object stat is changed, we refresh it. then s3fs gets always
@@ -2060,6 +2108,10 @@ static int s3fs_read(const char* path, char* buf, size_t size, off_t offset, str
   ssize_t res;
 
   S3FS_PRN_DBG("[path=%s][size=%zu][offset=%jd][fd=%llu]", path, size, (intmax_t)offset, (unsigned long long)(fi->fh));
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   FdEntity* ent;
   if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
@@ -2091,6 +2143,10 @@ static int s3fs_write(const char* path, const char* buf, size_t size, off_t offs
   ssize_t res;
 
   S3FS_PRN_DBG("[path=%s][size=%zu][offset=%jd][fd=%llu]", path, size, (intmax_t)offset, (unsigned long long)(fi->fh));
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   FdEntity* ent;
   if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
@@ -2124,6 +2180,10 @@ static int s3fs_flush(const char* path, struct fuse_file_info* fi)
   int result;
 
   S3FS_PRN_INFO("[path=%s][fd=%llu]", path, (unsigned long long)(fi->fh));
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   int mask = (O_RDONLY != (fi->flags & O_ACCMODE) ? W_OK : R_OK);
   if(0 != (result = check_parent_object_access(path, X_OK))){
@@ -2157,6 +2217,10 @@ static int s3fs_fsync(const char* path, int datasync, struct fuse_file_info* fi)
   int result = 0;
 
   S3FS_PRN_INFO("[path=%s][fd=%llu]", path, (unsigned long long)(fi->fh));
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   FdEntity* ent;
   if(NULL != (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
@@ -2178,6 +2242,10 @@ static int s3fs_release(const char* path, struct fuse_file_info* fi)
 {
   S3FS_PRN_INFO("[path=%s][fd=%llu]", path, (unsigned long long)(fi->fh));
 
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
   // [NOTICE]
   // At first, we remove stats cache.
   // Because fuse does not wait for response from "release" function. :-(
@@ -2211,6 +2279,11 @@ static int s3fs_release(const char* path, struct fuse_file_info* fi)
 
 static int s3fs_opendir(const char* path, struct fuse_file_info* fi)
 {
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   int result;
   int mask = (O_RDONLY != (fi->flags & O_ACCMODE) ? W_OK : R_OK) | X_OK;
 
@@ -2366,6 +2439,10 @@ static int s3fs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off
   int result;
 
   S3FS_PRN_INFO("[path=%s]", path);
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(0 != (result = check_object_access(path, X_OK, NULL))){
     return result;
@@ -3129,6 +3206,10 @@ static int s3fs_getxattr(const char* path, const char* name, char* value, size_t
 static int s3fs_listxattr(const char* path, char* list, size_t size)
 {
   S3FS_PRN_INFO("[path=%s][list=%p][size=%zu]", path, list, size);
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(!path){
     return -EIO;
@@ -3197,6 +3278,10 @@ static int s3fs_listxattr(const char* path, char* list, size_t size)
 static int s3fs_removexattr(const char* path, const char* name)
 {
   S3FS_PRN_INFO("[path=%s][name=%s]", path, name);
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
 
   if(!path || !name){
     return -EIO;
@@ -3342,6 +3427,11 @@ static void s3fs_destroy(void*)
 
 static int s3fs_access(const char* path, int mask)
 {
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   S3FS_PRN_INFO("[path=%s][mask=%s%s%s%s]", path,
           ((mask & R_OK) == R_OK) ? "R_OK " : "",
           ((mask & W_OK) == W_OK) ? "W_OK " : "",
