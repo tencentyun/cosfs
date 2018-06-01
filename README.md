@@ -75,14 +75,29 @@ sudo make install
 注意这个文件的权限必须正确设置，建议设为640。
 
 ```
-echo my-bucket:my-access-key-id:my-access-key-secret > /etc/passwd-cosfs #my-bucket的格式类似bucketprefix-123456789
+echo bucket_name:my-access-key-id:my-access-key-secret > /etc/passwd-cosfs # bucket_name的格式类似bucketprefix-123456789
 chmod 640 /etc/passwd-cosfs
 ```
 
 将cos bucket mount到指定目录
 ```
-cosfs my-bucket my-mount-point -ourl=my-cos-endpoint
+cosfs bucket_name my-mount-point -ourl=my-cos-endpoint
 ```
+
+注意：
+
+v1.0.5 版本之前的cosfs挂载命令：
+``
+cosfs bucketname_suffix:bucketname_prefix my-mount-point -ourl=my-cos-endpoint
+``
+
+v1.0.5 版本之前的配置文件格式是：
+``
+bucketname_prefix:<SecretId>:<SecretKey>
+``
+其中`bucketname_suffix`指的是bucket名称中的数字后缀, `bucketname_prefix`指的是除数字后缀外的其他部分。
+例如 bucketprefix-1253972369 的`bucketname_suffix` 为1253972369， `bucketname_prefix`为bucketprefix。
+
 #### 示例
 
 将`my-bucket`这个bucket挂载到`/tmp/cosfs`目录下，AccessKeyId是`faint`，
@@ -154,7 +169,10 @@ Licensed under the GNU GPL version 2
    在挂载命令的时候，可以指定目录，如
 
    cosfs my-bucket:/my-dir /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache
-   注意，my-dir必须以/开头
+   注意，my-dir必须以/开头.
+
+   v1.0.5 版本之前的挂载命令：
+   `cosfs my-bucket-name-suffix:my-bucket-name-prefix:/my-dir /tmp/cosfs -ourl=http://cn-south.myqcloud.com -odbglevel=info -ouse_cache=/path/to/local_cache`
   
 
 * 为什么之前可用写文件，突然不能写了？
