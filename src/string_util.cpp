@@ -144,6 +144,29 @@ string urlEncode(const string &s)
   return result;
 }
 
+string uriEncode(const string &s)
+{
+  string result;
+  for (unsigned i = 0; i < s.length(); ++i) {
+    char c = s[i];
+    if (c == '.'
+      || c == '-'
+      || c == '_'
+      || c == '~'
+      || (c >= 'a' && c <= 'z')
+      || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9')) {
+      result += c;
+    } else {
+      result += "%";
+      result += hexAlphabet[static_cast<unsigned char>(c) / 16];
+      result += hexAlphabet[static_cast<unsigned char>(c) % 16];
+    }
+  }
+  return result;
+}
+
+
 /**
  * urlEncode a fuse path,
  * taking into special consideration "/",

@@ -49,6 +49,7 @@ void get_date_sigv3(std::string& date, std::string& date8601);
 std::string get_date_string(time_t tm);
 std::string get_date_iso8601(time_t tm);
 std::string urlEncode(const std::string &s);
+std::string uriEncode(const std::string &s);
 std::string urlEncode2(const std::string &s);
 std::string urlDecode(const std::string& s);
 bool takeout_str_dquart(std::string& str);

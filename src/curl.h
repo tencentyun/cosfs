@@ -502,6 +502,8 @@ std::string get_canonical_header_keys(const struct curl_slist* list);
 
 bool MakeUrlResource(const char* realpath, std::string& resourcepath, std::string& url);
 std::string prepare_url(const char* url);
+std::string prepare_copy_source(const char* url);
+
 bool get_object_sse_type(const char* path, sse_type_t& ssetype, std::string& ssevalue);   // implement in s3fs.cpp
 
 #endif // S3FS_CURL_H_

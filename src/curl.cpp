@@ -3063,6 +3063,10 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
     if(key == "content-type"){
       ContentType    = value;
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+    } else if (key == "x-cos-copy-source") {
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+    } else if (key == "x-cos-copy-source-range") {
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
     }
     // NOTICE: x-cos-acl, x-cos-server-side-encryption is not set!
   }
@@ -3279,7 +3283,7 @@ int S3fsCurl::MultipartRenameRequest(const char* from, const char* to, headers_t
   MakeUrlResource(get_realpath(from).c_str(), srcresource, srcurl);
 
   meta["Content-Type"]      = S3fsCurl::LookupMimeType(string(to));
-  meta["x-cos-copy-source"] = srcresource;
+  meta["x-cos-copy-source"] = prepare_copy_source(srcurl.c_str());
 
   if(0 != (result = PreMultipartPostRequest(to, meta, upload_id, true))){
     return result;
@@ -3879,7 +3883,7 @@ string get_canonical_headers(const struct curl_slist* list)
       if (strval.empty()) {
          continue;
       }
-      strhead       = strkey + string("=") + strval;
+      strhead       = strkey + string("=") + uriEncode(strval);
     }else{
       strhead       = trim(lower(strhead));
     }
@@ -3987,6 +3991,44 @@ string prepare_url(const char* url)
 
   return str(url_str);
 }
+
+string prepare_copy_source(const char* url)
+{
+  S3FS_PRN_INFO3("URL is %s", url);
+
+  string host;
+  string path;
+  string url_str = str(url);
+  string token =  str("/" + bucket);
+  int bucket_pos = url_str.find(token);
+  int bucket_length = token.size();
+  int uri_length = 0;
+
+  if(!strncasecmp(url_str.c_str(), "https://", 8)){
+    uri_length = 8;
+  } else if(!strncasecmp(url_str.c_str(), "http://", 7)) {
+    uri_length = 7;
+  }
+
+  if(!pathrequeststyle){
+    host = bucket + "-" +  appid + "." + url_str.substr(uri_length, bucket_pos - uri_length).c_str();
+    path = url_str.substr((bucket_pos + bucket_length));
+  }else{
+    host = url_str.substr(uri_length, bucket_pos - uri_length).c_str();
+    string part = url_str.substr((bucket_pos + bucket_length));
+    if('/' != part[0]){
+      part = "/" + part;
+    }
+    path = "/" + bucket + part;
+  }
+
+  url_str = host + path;
+
+  S3FS_PRN_INFO3("URL changed is %s", url_str.c_str());
+
+  return str(url_str);
+}
+
 
 /*
 * Local variables:
