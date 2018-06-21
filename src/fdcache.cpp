@@ -758,7 +758,8 @@ int FdEntity::Open(headers_t* pmeta, ssize_t size, time_t time)
         size = 0;
         pagelist.Init(0, false);
       }else{
-        pagelist.Resize(static_cast<size_t>(size), false);
+        //pagelist.Resize(static_cast<size_t>(size), false);
+        pagelist.Init(static_cast<size_t>(size), false);
         is_truncate = true;
       }
     }
