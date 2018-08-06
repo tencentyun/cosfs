@@ -82,6 +82,7 @@
 
 #endif // HAVE_MALLOC_TRIM
 
+bool is_cache_overflow();
 #endif // S3FS_S3_H_
 
 /*

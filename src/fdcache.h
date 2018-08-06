@@ -137,6 +137,7 @@ class FdEntity
     explicit FdEntity(const char* tpath = NULL, const char* cpath = NULL);
     ~FdEntity();
 
+    bool IsCacheFile() const { return 0 < cachepath.size(); }
     void Close(void);
     bool IsOpen(void) const { return (-1 != fd); }
     int Open(headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1);
@@ -185,7 +186,7 @@ class FdManager
     fdent_map_t            fent;
 
   private:
-    static fsblkcnt_t GetFreeDiskSpace(const char* path);
+    static fsblkcnt_t GetFreeDiskSpace(const char* path, bool is_cache_file);
 
   public:
     FdManager();
@@ -206,7 +207,7 @@ class FdManager
     static size_t GetEnsureFreeDiskSpace(void) { return FdManager::free_disk_space; }
     static size_t SetEnsureFreeDiskSpace(size_t size);
     static size_t InitEnsureFreeDiskSpace(void) { return SetEnsureFreeDiskSpace(0); }
-    static bool IsSafeDiskSpace(const char* path, size_t size);
+    static bool IsSafeDiskSpace(const char* path, size_t size, bool is_cache_file);
 
     FdEntity* GetFdEntity(const char* path, int existfd = -1);
     FdEntity* Open(const char* path, headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1, bool force_tmpfile = false, bool is_create = true);

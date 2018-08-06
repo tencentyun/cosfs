@@ -68,7 +68,9 @@ using namespace std;
 #if !defined(ENOATTR)
 #define ENOATTR				ENODATA
 #endif
-
+#define DU_TOOL_CMD         "/usr/bin/du -s -B1 "
+#define SLEEP_SEC           5
+#define SLEEP_NSEC          0
 //-------------------------------------------------------------------
 // Structs
 //-------------------------------------------------------------------
@@ -123,10 +125,14 @@ static bool is_s3fs_umask         = false;// default does not set.
 static bool is_remove_cache       = false;
 static bool create_bucket         = false;
 static int64_t singlepart_copy_limit = FIVE_GB;
+static bool   use_cache_limit = false;
+static uint64_t cache_limit_size = 0; //in bytes
+static uint64_t cache_current_size = 0;
 
 //-------------------------------------------------------------------
 // Static functions : prototype
 //-------------------------------------------------------------------
+static void* collect_cache_func(void* arg);
 static void s3fs_usr2_handler(int sig);
 static bool set_s3fs_usr2_handler(void);
 static s3fs_log_level set_s3fs_log_level(s3fs_log_level level);
@@ -222,6 +228,37 @@ static void s3fs_exit_fuseloop(int exit_status);
 //-------------------------------------------------------------------
 // Functions
 //-------------------------------------------------------------------
+//judge cache whether overflow
+bool is_cache_overflow() {
+    return use_cache_limit && cache_limit_size <= cache_current_size;
+}
+
+static void* collect_cache_func(void* arg) {
+  FILE *fp;
+  char buf[128];
+  struct timespec sleep_time;
+  sleep_time.tv_sec = SLEEP_SEC;
+  sleep_time.tv_nsec = SLEEP_NSEC;
+
+  string command = DU_TOOL_CMD;
+  command = command + FdManager::GetCacheDir() + "/" + bucket;
+  S3FS_PRN_DBG("du command: %s", command.c_str());
+  while(true){
+    fp = popen(command.c_str(), "r");
+    if(NULL == fp) {
+      S3FS_PRN_ERR("failed to execute du command");
+    }else {
+      fgets(buf, sizeof(buf) - 1, fp);
+	  std::istringstream iss(buf);
+	  iss >> cache_current_size;
+      S3FS_PRN_DBG("cache_current_size %d", cache_current_size);
+	  pclose(fp);
+    }
+    nanosleep(&sleep_time, NULL);
+  }
+  return NULL;
+}
+
 static void s3fs_usr2_handler(int sig)
 {
   if(SIGUSR2 == sig){
@@ -3406,6 +3443,15 @@ static void* s3fs_init(struct fuse_conn_info* conn)
   }
   #endif
 
+  if(use_cache_limit) {
+    pthread_t thread;
+    int rc;
+    rc = pthread_create(&thread, NULL, &collect_cache_func, NULL);
+    if(0 != rc) {
+      S3FS_PRN_ERR("failed create collect_cache_func thread: %d", rc);
+    }
+  }
+
   return NULL;
 }
 
@@ -4743,6 +4789,13 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
         noxmlns = false;
         return 0;
     }
+
+    if(0 == STR2NCMP(arg, "cache_limit_size=")) {
+        cache_limit_size = static_cast<uint64_t>(s3fs_strtoofft(strchr(arg, '=') + sizeof(char))) * 1024 * 1024;
+		use_cache_limit = true;
+        S3FS_PRN_INFO("cache_limit size is %llu", cache_limit_size);
+        return 0;
+    }
   }
   return 1;
 }
@@ -4931,7 +4984,7 @@ int main(int argc, char* argv[])
 
   // check free disk space
   FdManager::InitEnsureFreeDiskSpace();
-  if(!FdManager::IsSafeDiskSpace(NULL, S3fsCurl::GetMultipartSize())){
+  if(!FdManager::IsSafeDiskSpace(NULL, S3fsCurl::GetMultipartSize(), FdManager::IsCacheDir())){
     S3FS_PRN_EXIT("There is no enough disk space for used as cache(or temporary) directory by s3fs.");
     exit(EXIT_FAILURE);
   }

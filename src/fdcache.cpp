@@ -1314,7 +1314,7 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
   if(0 < restsize){
     if(0 == upload_id.length()){
       // check disk space
-      if(FdManager::IsSafeDiskSpace(NULL, restsize)){
+      if(FdManager::IsSafeDiskSpace(NULL , restsize, IsCacheFile())){
         // enough disk space
         // Load all unitialized area
         if(0 != (result = Load())){
@@ -1429,7 +1429,7 @@ ssize_t FdEntity::Read(char* bytes, off_t start, size_t size, bool force_load)
 
   // check disk space
   if(0 < pagelist.GetTotalUnloadedPageSize(start, size)){
-    if(!FdManager::IsSafeDiskSpace(NULL, size)){
+    if(!FdManager::IsSafeDiskSpace(NULL, size, IsCacheFile())){
       // [NOTE]
       // If the area of this entity fd used can be released, try to do it.
       // But If file data is updated, we can not even release of fd.
@@ -1486,7 +1486,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   if(0 == upload_id.length()){
     // check disk space
     size_t restsize = pagelist.GetTotalUnloadedPageSize(0, start) + size;
-    if(FdManager::IsSafeDiskSpace(NULL, restsize)){
+    if(FdManager::IsSafeDiskSpace(NULL, restsize, IsCacheFile())){
       // enough disk space
 
       // Load unitialized area which starts from 0 to (start + size) before writing.
@@ -1705,11 +1705,11 @@ size_t FdManager::SetEnsureFreeDiskSpace(size_t size)
   return old;
 }
 
-fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path)
+fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path, bool is_cache_file)
 {
   struct statvfs vfsbuf;
   string         ctoppath;
-  if(0 < FdManager::cache_dir.size()){
+  if(0 < FdManager::cache_dir.size() && is_cache_file){
     ctoppath = FdManager::cache_dir + "/";
   }else{
     ctoppath = TMPFILE_DIR_0PATH "/";
@@ -1726,9 +1726,9 @@ fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path)
   return (vfsbuf.f_bavail * vfsbuf.f_bsize);
 }
 
-bool FdManager::IsSafeDiskSpace(const char* path, size_t size)
+bool FdManager::IsSafeDiskSpace(const char* path, size_t size, bool is_cache_file)
 {
-  fsblkcnt_t fsize = FdManager::GetFreeDiskSpace(path);
+  fsblkcnt_t fsize = FdManager::GetFreeDiskSpace(path, is_cache_file);
   return ((size + FdManager::GetEnsureFreeDiskSpace()) <= fsize);
 }
 
@@ -1823,6 +1823,10 @@ FdEntity* FdManager::Open(const char* path, headers_t* pmeta, ssize_t size, time
     if(!force_tmpfile && !FdManager::MakeCachePath(path, cache_path, true)){
       S3FS_PRN_ERR("failed to make cache path for object(%s).", path);
       return NULL;
+    }
+    //cache file not exist and cache overflow, use tmpfile
+    if(cache_path.size() != 0 && access(cache_path.c_str(), F_OK) == -1 && is_cache_overflow()) {
+      cache_path = "";
     }
     // make new obj
     ent = new FdEntity(path, cache_path.c_str());
