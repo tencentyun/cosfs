@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #test for cache
 #test cp mv
-#test use cache_dir/no cache_dir/cache_limit
+#test use cache_dir/cache_limit
 import os
 import time
 import shutil
@@ -98,7 +98,7 @@ class CacheLimitTest:
 
     def mv_cp_template(self, cmd_name, file_infos):
         """"
-        mv or copy data to mount point
+        mv or cp data to mount point
         """
         for file in file_infos:
             self.generate_file(file[0], file[1])
@@ -157,7 +157,7 @@ class CacheLimitTest:
     def increment_test(self):
         """
         generate a 1 2 3 2 1 M file
-        mv it  to mount file system
+        mv or cp it  to mount file system
         """
         file_infos = [['fileA', 1024, True], ['fileB', 2 * 1024, True], ['fileC', 3 * 1024, True],
                       ['fileD', 2 * 1024, False], ['fileE', 1 * 1024, False]]
