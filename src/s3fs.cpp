@@ -4886,6 +4886,12 @@ int main(int argc, char* argv[])
     exit(EXIT_FAILURE);
   }
 
+  //exit when set cache_limit_size and not set use_cache
+  if(use_cache_limit && !FdManager::IsCacheDir()) {
+    S3FS_PRN_EXIT("specifying both use_cache and cache_limit_size");
+    exit(EXIT_FAILURE);
+  }
+
   // [NOTE]
   // exclusive option check here.
   //

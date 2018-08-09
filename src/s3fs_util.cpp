@@ -885,7 +885,7 @@ void show_help (void)
     "      - local folder to use for local file cache\n"
     "\n"
     "   cache_limit_size ( default=\"0\")\n"
-	"      - in MB, create a thread limit cache dir size)\n"
+	"      - in MB, create a thread limit cache dir size, use_cache option must be set)\n"
     "\n"
     "   del_cache (delete local file cache)\n"
     "      - delete local file cache when cosfs starts and exits.\n"
