@@ -132,7 +132,7 @@ COSSecretKey=80e1A3h5FBtNbcPxGPL3ZqthFYdU6TbY
 COSAccessToken=109dbb14ca0c30ef4b7e2fc9612f26788cadbfac3
 COSAccessTokenExpire=2017-08-29T20:30:00
 
-其中COSAccessTokenExpire 代表临时token过期时间，本地时间，格式需要和例子中一致
+其中COSAccessTokenExpire 代表临时token过期时间，为GMT时间，格式需要和例子中一致
 cosfs会根据这个时间来判断是否要重新加载配置来获取到最新的配置
 
 其它三个参数需要向CAM申请获取
