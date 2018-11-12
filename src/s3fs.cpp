@@ -3757,25 +3757,25 @@ static int s3fs_check_service(void)
     // check errors(after retrying)
     if(0 > res && responseCode != 200 && responseCode != 301){
       if(responseCode == 400){
-        S3FS_PRN_CRIT("Bad Request - result of checking service.");
+        S3FS_PRN_EXIT("Bad Request - result of checking service.");
         return EXIT_FAILURE;
       }
       if(responseCode == 403){
-        S3FS_PRN_CRIT("invalid credentials - result of checking service.");
+        S3FS_PRN_EXIT("invalid credentials - result of checking service.");
         return EXIT_FAILURE;
       }
       if(responseCode == 404){
-        S3FS_PRN_CRIT("bucket not found - result of checking service.");
+        S3FS_PRN_EXIT("bucket not found - result of checking service.");
         return EXIT_FAILURE;
       }
       // unable to connect
       if(responseCode == CURLE_OPERATION_TIMEDOUT){
-        S3FS_PRN_CRIT("unable to connect bucket and timeout - result of checking service.");
+        S3FS_PRN_EXIT("unable to connect bucket and timeout - result of checking service.");
         return EXIT_FAILURE;
       }
 
       // another error
-      S3FS_PRN_CRIT("unable to connect - result of checking service.");
+      S3FS_PRN_EXIT("unable to connect - result of checking service.");
       return EXIT_FAILURE;
     }
   }
@@ -3783,7 +3783,7 @@ static int s3fs_check_service(void)
   // make sure remote mountpath exists and is a directory
   if(mount_prefix.size() > 0){
     if(remote_mountpath_exists(mount_prefix.c_str()) != 0){
-      S3FS_PRN_CRIT("remote mountpath %s not found.", mount_prefix.c_str());
+     S3FS_PRN_EXIT("remote mountpath %s not found.", mount_prefix.c_str());
       return EXIT_FAILURE;
     }
   }
@@ -5001,7 +5001,6 @@ int main(int argc, char* argv[])
 
   int result;
   if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-     S3FS_PRN_EXIT("check bucket failed, see syslog(CentOS:/var/log/messages, Ubuntu:/var/log/syslog) for detail information.");
      exit(result);
   }
 
