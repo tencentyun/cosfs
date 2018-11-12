@@ -4155,8 +4155,9 @@ static int get_access_keys(void)
   if(PF.good()){
     PF.close();
     return read_passwd_file();
+  }else{
+    S3FS_PRN_EXIT("COS_CREDENTIAL_FILE: \"%s\" is not readable.", passwd_file.c_str());
   }
-  S3FS_PRN_EXIT("could not determine how to establish security credentials.");
 
   return EXIT_FAILURE;
 }
@@ -4887,7 +4888,7 @@ int main(int argc, char* argv[])
       exit(EXIT_FAILURE);
     }
     if(!S3fsCurl::IsSetAccessKeyId()){
-      S3FS_PRN_EXIT("could not establish security credentials, check documentation.");
+      S3FS_PRN_EXIT("could not establish security credentials, check mount command and passwd file configuration.");
       exit(EXIT_FAILURE);
     }
     // More error checking on the access key pair can be done
@@ -5000,8 +5001,8 @@ int main(int argc, char* argv[])
 
   int result;
   if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-       S3FS_PRN_EXIT("bucket not exist, exiting...");
-       exit(result);
+     S3FS_PRN_EXIT("check bucket failed, see syslog(CentOS:/var/log/messages, Ubuntu:/var/log/syslog) for detail information.");
+     exit(result);
   }
 
   // now passing things off to fuse, fuse will finish evaluating the command line args
