@@ -5001,7 +5001,8 @@ int main(int argc, char* argv[])
 
   int result;
   if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-     exit(result);
+    S3FS_PRN_EXIT("More help information see cosfs documentation: https://cloud.tencent.com/document/product/436/6883");
+    exit(result);
   }
 
   // now passing things off to fuse, fuse will finish evaluating the command line args
