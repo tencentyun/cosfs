@@ -3757,25 +3757,25 @@ static int s3fs_check_service(void)
     // check errors(after retrying)
     if(0 > res && responseCode != 200 && responseCode != 301){
       if(responseCode == 400){
-        S3FS_PRN_CRIT("Bad Request - result of checking service.");
+        S3FS_PRN_EXIT("Client argument error.");
         return EXIT_FAILURE;
       }
       if(responseCode == 403){
-        S3FS_PRN_CRIT("invalid credentials - result of checking service.");
+        S3FS_PRN_EXIT("Forbidden visit bucket, check secretId, secretKey.");
         return EXIT_FAILURE;
       }
       if(responseCode == 404){
-        S3FS_PRN_CRIT("bucket not found - result of checking service.");
+        S3FS_PRN_EXIT("Bucket not found, check bucket name and region whether correct.");
         return EXIT_FAILURE;
       }
       // unable to connect
       if(responseCode == CURLE_OPERATION_TIMEDOUT){
-        S3FS_PRN_CRIT("unable to connect bucket and timeout - result of checking service.");
+        S3FS_PRN_EXIT("Unable to connect bucket and timeout, check network condition.");
         return EXIT_FAILURE;
       }
 
       // another error
-      S3FS_PRN_CRIT("unable to connect - result of checking service.");
+      S3FS_PRN_EXIT("Unable to connect cos, check network condition.");
       return EXIT_FAILURE;
     }
   }
@@ -3783,7 +3783,7 @@ static int s3fs_check_service(void)
   // make sure remote mountpath exists and is a directory
   if(mount_prefix.size() > 0){
     if(remote_mountpath_exists(mount_prefix.c_str()) != 0){
-      S3FS_PRN_CRIT("remote mountpath %s not found.", mount_prefix.c_str());
+     S3FS_PRN_EXIT("Remote mountpath %s not found, check whether exist.", mount_prefix.c_str());
       return EXIT_FAILURE;
     }
   }
@@ -4155,8 +4155,9 @@ static int get_access_keys(void)
   if(PF.good()){
     PF.close();
     return read_passwd_file();
+  }else{
+    S3FS_PRN_EXIT("COS_CREDENTIAL_FILE: \"%s\" is not readable.", passwd_file.c_str());
   }
-  S3FS_PRN_EXIT("could not determine how to establish security credentials.");
 
   return EXIT_FAILURE;
 }
@@ -4887,7 +4888,7 @@ int main(int argc, char* argv[])
       exit(EXIT_FAILURE);
     }
     if(!S3fsCurl::IsSetAccessKeyId()){
-      S3FS_PRN_EXIT("could not establish security credentials, check documentation.");
+      S3FS_PRN_EXIT("could not establish security credentials, check mount command and passwd file configuration.");
       exit(EXIT_FAILURE);
     }
     // More error checking on the access key pair can be done
@@ -5000,8 +5001,8 @@ int main(int argc, char* argv[])
 
   int result;
   if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-       S3FS_PRN_EXIT("bucket not exist, exiting...");
-       exit(result);
+    S3FS_PRN_EXIT("More help information, please refer to cosfs documentation: https://cloud.tencent.com/document/product/436/6883");
+    exit(result);
   }
 
   // now passing things off to fuse, fuse will finish evaluating the command line args
