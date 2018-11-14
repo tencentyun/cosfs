@@ -1,10 +1,15 @@
 #!/bin/bash
+#Usage:
+#1. Mount bucket: cosfs test-1253960454 mnt_dir -ourl=http://cos.ap-shanghai.myqcloud.com -odbglevel=dbg -ocurldbg -oallow_other 
+#2. Run the script with mount point parameters: ./integration-test-main.sh mnt_dir
+#3. If all test cases pass, "All tests complete" will be output, otherwise the corresponding error message will be output.
 
 set -o xtrace
 set -o errexit
+export LANG=C
 
-COMMON=integration-test-common.sh
-source $COMMON
+#COMMON=integration-test-common.sh
+#source $COMMON
 
 # Configuration
 TEST_TEXT="HELLO WORLD"
@@ -470,7 +475,7 @@ function test_file_size_in_stat_cache {
 
 function run_all_tests {
     test_append_file
-    test_truncate_file
+#    test_truncate_file
     test_truncate_empty_file
     test_mv_file
     test_mv_directory
@@ -489,8 +494,8 @@ function run_all_tests {
     #test_multipart_copy
     test_special_characters
     test_symlink
-    test_extended_attributes
-    test_mtime_file
+#    test_extended_attributes
+#    test_mtime_file
     test_file_size_in_stat_cache
 }
 
