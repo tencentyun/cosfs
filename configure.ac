@@ -280,3 +280,18 @@ AC_OUTPUT
 dnl ----------------------------------------------
 dnl end configuration
 dnl ----------------------------------------------
+function version_gt() { 
+    test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"; 
+}
+
+high_nss_version="3.12.3"
+for i in $(curl -V | grep NSS | tr " " "\n")
+do
+    if echo "$i" |grep -q NSS;then
+        curl_nss_version=`echo $i|cut -d'/' -f 2`
+        if test "$curl_nss_version" == "$high_nss_version" || version_gt $curl_nss_version $high_nss_version ;then
+            echo "export NSS_STRICT_NOFORK=DISABLED" >> ~/.bashrc
+            source ~/.bashrc
+        fi
+    fi
+done
