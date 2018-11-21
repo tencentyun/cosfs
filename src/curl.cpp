@@ -1855,6 +1855,12 @@ int S3fsCurl::RequestPerform(void)
             S3FS_PRN_DBG("Body Text: %s", (bodydata ? bodydata->str() : ""));
             return -ENOENT;
 
+          case 409:
+            S3FS_PRN_INFO3("HTTP response code 409 was returned, retry after sleep");
+            S3FS_PRN_DBG("Body Text: %s", (bodydata ? bodydata->str() : ""));
+            usleep(100000);
+            break;
+
           default:
             S3FS_PRN_INFO3("HTTP response code = %ld, returning EIO", LastResponseCode);
             S3FS_PRN_DBG("Body Text: %s", (bodydata ? bodydata->str() : ""));
