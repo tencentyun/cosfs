@@ -3975,6 +3975,12 @@ string prepare_url(const char* url)
   }
   uri  = url_str.substr(0, uri_length);
 
+  //if token is /cos and url_str starts with https://cos or http://cos, we need to find the second token.
+  if("/cos" == token && (!strncasecmp(url_str.c_str(), "https://cos", 11) || 
+                         !strncasecmp(url_str.c_str(), "http://cos", 10))) {
+    bucket_pos = url_str.find(token, uri_length);
+  }
+
   if(!pathrequeststyle){
     host = bucket + "-" +  appid + "." + url_str.substr(uri_length, bucket_pos - uri_length).c_str();
     path = url_str.substr((bucket_pos + bucket_length));
