@@ -2691,7 +2691,8 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
     if(key.substr(0, 9) == "x-cos-acl"){
       // not set value, but after set it.
     }else if(key.substr(0, 10) == "x-cos-meta"){
-      // requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+      //carrying object meta information
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
     }
   }
   // "x-cos-acl", storage class, sse
