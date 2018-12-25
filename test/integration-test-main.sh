@@ -494,8 +494,8 @@ function run_all_tests {
     #test_multipart_copy
     test_special_characters
     test_symlink
-#    test_extended_attributes
-#    test_mtime_file
+    test_extended_attributes
+    test_mtime_file
     test_file_size_in_stat_cache
 }
 

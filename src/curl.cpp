@@ -3886,9 +3886,10 @@ string get_canonical_headers(const struct curl_slist* list)
       if (strval.empty()) {
          continue;
       }
-      strhead       = strkey + string("=") + strval;
+      //value needs to be urlEncode
+      strhead = strkey + string("=") + urlEncodeForSign(strval);
     }else{
-      strhead       = trim(lower(strhead));
+      strhead = trim(lower(strhead));
     }
     if (strhead.substr(0, 5) != "x-cos") {
         continue;

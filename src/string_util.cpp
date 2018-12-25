@@ -174,6 +174,30 @@ string urlEncode2(const string &s)
   return result;
 }
 
+/** 
+ * urlEncode for cos signature,
+ * perform regular urlEncode. 
+ */ 
+string urlEncodeForSign(const string &s) {
+  string result;
+  for (unsigned i = 0; i < s.length(); ++i) {
+    char c = s[i];
+    if (c == '.'
+      || c == '-'
+      || c == '_'
+      || (c >= 'a' && c <= 'z')
+      || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9')) {
+      result += c;
+    } else {
+      result += "%";
+      result += hexAlphabet[static_cast<unsigned char>(c) / 16];
+      result += hexAlphabet[static_cast<unsigned char>(c) % 16];
+    }
+  } 
+  return result;
+}
+
 string urlDecode(const string& s)
 {
   string result;
