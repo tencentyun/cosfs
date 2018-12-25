@@ -46,14 +46,21 @@ Ubuntu 14.04+:
 
 ```
 sudo apt-get install automake autotools-dev g++ git libcurl4-gnutls-dev \
-                     libfuse-dev libssl-dev libxml2-dev make pkg-config
+                     libfuse-dev libssl-dev libxml2-dev make pkg-config fuse
 ```
 
 CentOS 6.5+:
 
 ```
 sudo yum install automake gcc-c++ git libcurl-devel libxml2-devel \
-                 fuse-devel make openssl-devel
+                 fuse-devel make openssl-devel fuse
+```
+
+macOS:
+
+```shell
+brew install automake git curl libxml2 make pkg-config openssl 
+brew cask install osxfuse
 ```
  
 如果在编译过程中遇到提示fuse版本低于2.8.4，请参考常见问题来解决
