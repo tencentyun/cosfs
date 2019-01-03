@@ -3391,14 +3391,6 @@ static int s3fs_removexattr(const char* path, const char* name)
 
 static void* s3fs_init(struct fuse_conn_info* conn)
 {
-  // check bucket
-  {
-       int result;
-       if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-           s3fs_exit_fuseloop(result);
-           return NULL;
-       }
-  }
   // Investigate system capabilities
   #ifndef __APPLE__
   if((unsigned int)conn->capable & FUSE_CAP_ATOMIC_O_TRUNC){
