@@ -2570,16 +2570,24 @@ int S3fsCurl::CheckBucket(void)
   }
   string resource;
   string turl;
-  MakeUrlResource("/", resource, turl);
+  MakeUrlResource(get_realpath("/").c_str(), resource, turl);
 
   url             = prepare_url(turl.c_str());
-  path            = "/";
+  path            = get_realpath("/");
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
 
   string date    = get_date_rfc850();
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+
+  //limit the number of objects returned if it is a GET Bucket request
+  if(mount_prefix.empty()){
+    url += "?";
+    url += "delimiter=/";
+    url += "&max-keys=2";
+    url += "&prefix=/";
+  }
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("GET", "", "", date, resource);
