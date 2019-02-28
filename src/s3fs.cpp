@@ -4879,10 +4879,7 @@ int main(int argc, char* argv[])
     S3FS_PRN_EXIT("specifying both public_bucket and the access keys options is invalid.");
     exit(EXIT_FAILURE);
   }
-  if(passwd_file.size() > 0 && S3fsCurl::IsSetAccessKeyId()){
-    S3FS_PRN_EXIT("specifying both passwd_file and the access keys options is invalid.");
-    // exit(EXIT_FAILURE);
-  }
+
   if(!S3fsCurl::IsPublicBucket()){
     if(EXIT_SUCCESS != get_access_keys()){
       exit(EXIT_FAILURE);
