@@ -2332,6 +2332,8 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
       // not set value, but after set it.
     }else if(key.substr(0, 10) == "x-cos-meta"){
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+    } else if(key == "x-cos-copy-source"){
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
     }
   }
 
@@ -3070,7 +3072,11 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
     if(key == "content-type"){
       ContentType    = value;
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
-    }
+    } else if(key == "x-cos-copy-source"){
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+    }else if(key == "x-cos-copy-source-range"){
+      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
+    } 
     // NOTICE: x-cos-acl, x-cos-server-side-encryption is not set!
   }
 
