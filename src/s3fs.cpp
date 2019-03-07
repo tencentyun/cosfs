@@ -1189,7 +1189,7 @@ static int rename_object(const char* from, const char* to)
   }
   s3_realpath = get_realpath(from);
 
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + s3_realpath);
+  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + s3_realpath);
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
 
@@ -3112,7 +3112,7 @@ static int s3fs_setxattr(const char* path, const char* name, const char* value, 
   }
 
   // set xattr all object
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(strpath.c_str()));
+  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
   meta["x-cos-metadata-directive"] = "REPLACE";
 
   if(0 != put_headers(strpath.c_str(), meta, true)){
@@ -3375,7 +3375,7 @@ static int s3fs_removexattr(const char* path, const char* name)
   }
 
   // set xattr all object
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(strpath.c_str()));
+  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
   meta["x-cos-metadata-directive"] = "REPLACE";
 
   if(0 != put_headers(strpath.c_str(), meta, true)){
