@@ -3292,7 +3292,7 @@ int S3fsCurl::MultipartRenameRequest(const char* from, const char* to, headers_t
   MakeUrlResource(get_realpath(from).c_str(), srcresource, srcurl);
 
   meta["Content-Type"]      = S3fsCurl::LookupMimeType(string(to));
-  meta["x-cos-copy-source"] = srcresource;
+  meta["x-cos-copy-source"] = urlEncode(service_path + bucket + "-" + appid + get_realpath(from));
 
   if(0 != (result = PreMultipartPostRequest(to, meta, upload_id, true))){
     return result;
