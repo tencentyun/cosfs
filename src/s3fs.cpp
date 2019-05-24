@@ -3758,26 +3758,23 @@ static int s3fs_check_service(void)
 
     // check errors(after retrying)
     if(0 > res && responseCode != 200 && responseCode != 301){
+      BodyData* body = s3fscurl.GetBodyData();
       if(responseCode == 400){
-        S3FS_PRN_EXIT("Client argument error.");
-        return EXIT_FAILURE;
+        S3FS_PRN_EXIT("Client argument error, please check mount command\n\n%s", body ? body->str() : "");
+      } else if(responseCode == 403){
+        S3FS_PRN_EXIT("Forbidden visit bucket, please check secretId, secretKey and mount command\n\n%s", body ? body->str() : "");
+      } else if(responseCode == 404){
+        string bucket_name = bucket + "-" + appid;
+        S3FS_PRN_EXIT("Bucket %s not found, please check if the bucket exists and mount command\n\n%s", bucket_name.c_str(), body ? body->str() : "");
+      } else if(responseCode == CURLE_OPERATION_TIMEDOUT){
+        // unable to connect
+        S3FS_PRN_EXIT("Unable to connect host %s(timeout), please check network condition and mount command", host.c_str());
+      } else{
+        // other error code
+        S3FS_PRN_EXIT("Mount bucket failed, connect host is: %s, please check network condition and mount command\n\n%s", host.c_str(), body ? body->str() : "");
       }
-      if(responseCode == 403){
-        S3FS_PRN_EXIT("Forbidden visit bucket, check secretId, secretKey.");
-        return EXIT_FAILURE;
-      }
-      if(responseCode == 404){
-        S3FS_PRN_EXIT("Bucket not found, check bucket name and region whether correct.");
-        return EXIT_FAILURE;
-      }
-      // unable to connect
-      if(responseCode == CURLE_OPERATION_TIMEDOUT){
-        S3FS_PRN_EXIT("Unable to connect bucket and timeout, check network condition.");
-        return EXIT_FAILURE;
-      }
-
-      // another error
-      S3FS_PRN_EXIT("Unable to connect cos, check network condition.");
+      // a correct mount example
+      S3FS_PRN_EXIT("mount example: cosfs examplebucket-1250000000 /mnt/cosfs -ourl=http://cos.ap-guangzhou.myqcloud.com -odbglevel=dbg -oallow_other");
       return EXIT_FAILURE;
     }
   }
@@ -4194,13 +4191,35 @@ static int set_moutpoint_attribute(struct stat& mpst)
 }
 
 void SplitString(const std::string& str, char delim, std::vector<std::string>* vec) {
-    std::stringstream ss(str);
-    std::string item;
-	while(std::getline(ss, item, delim)) {
-		if(!item.empty()) {
-			vec->push_back(item);
-		}
-	}
+  std::stringstream ss(str);
+  std::string item;
+  while(std::getline(ss, item, delim)) {
+    if(!item.empty()) {
+      vec->push_back(item);
+    }
+  }
+}
+
+// parse version like 3.12.3
+// return number like: <8 bits major number>|<8 bits minor number>|<8 bits patch number>
+int get_version(string version_str) {
+  int major_version = 0;
+  int minor_version = 0;
+  int patch_version = 0;
+  std::vector<std::string> split_vec;
+
+  SplitString(version_str, '.', &split_vec);
+  if(1 <= split_vec.size()) {
+    major_version = static_cast<int>(s3fs_strtoofft(split_vec[0].c_str()));
+  }  
+  if(2 <= split_vec.size()) {
+    minor_version = static_cast<int>(s3fs_strtoofft(split_vec[1].c_str()));
+  }
+  if(3 <= split_vec.size()) {
+    patch_version = static_cast<int>(s3fs_strtoofft(split_vec[2].c_str()));
+  }
+
+  return (major_version << 16) + (minor_version << 8) + patch_version;
 }
 
 // This is repeatedly called by the fuse option parser
@@ -4662,6 +4681,30 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
          found  = host.find_last_of('/');
          length = host.length();
       }
+      if((host.compare(0, 12, "https://cos.") != 0) && (host.compare(0, 11, "http://cos.") != 0)) {
+         fprintf(stdout, "Warn:option url has invalid format:%s, correct example:-ourl=http://cos.ap-guangzhou.myqcloud.com\n", host.c_str());
+      }
+      // if use https and libcurl version greater or equal to 3.12.3, should set environment NSS_STRICT_NOFORK=DISABLED
+      curl_version_info_data *data = curl_version_info(CURLVERSION_NOW);
+      char *env = getenv("NSS_STRICT_NOFORK");
+      bool use_nss = false;
+      int nss_version = 0;
+      if(data->ssl_version && 0 == STR2NCMP(data->ssl_version, "NSS/")) {
+        use_nss = true;
+        nss_version = get_version(data->ssl_version + 4);
+        S3FS_PRN_CRIT("NSS version is:%s, convert hex version:%x", data->ssl_version, nss_version);
+      }
+
+      if((host.compare(0, 8, "https://") == 0) && use_nss && (nss_version >= 0x030c03) && (NULL == env || STR2NCMP(env, "DISABLED"))) {
+        int res = setenv("NSS_STRICT_NOFORK", "DISABLED", 1);
+        if(0 != res) {
+          S3FS_PRN_EXIT("if you mount using the https protocal and the libcurl version is greater or equal to 3.12.3,"
+                        "please set NSS_STRICT_NOFORK=DISABLED environment variable and mount again");
+          return -1;
+        } else {
+          S3FS_PRN_CRIT("set NSS_STRICT_NOFORK=DISABLED environment variable success");
+        }
+      }
       return 0;
     }
 	if (0 == STR2NCMP(arg, "default_permission=")) {
@@ -4845,7 +4888,7 @@ int main(int argc, char* argv[])
   }
 
   // The first plain argument is the bucket
-  if(bucket.size() == 0 || appid.empty()){
+  if(bucket.empty() || appid.empty()){
     S3FS_PRN_EXIT("missing BUCKET argument or appid argument.");
     show_usage();
     exit(EXIT_FAILURE);
@@ -5000,7 +5043,8 @@ int main(int argc, char* argv[])
 
   int result;
   if (EXIT_SUCCESS != (result = s3fs_check_service())) {
-    S3FS_PRN_EXIT("More help information, please refer to cosfs documentation: https://cloud.tencent.com/document/product/436/6883");
+    S3FS_PRN_EXIT("On the CentOS system, cosfs logs are stored in /var/log/messages; On the Ubuntu system, cosfs logs are stored in /var/log/syslog");
+    S3FS_PRN_EXIT("More help information, please refer to cosfs --help|less or cosfs documentation: https://cloud.tencent.com/document/product/436/6883 for detail");
     exit(result);
   }
 
