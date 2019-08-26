@@ -2323,14 +2323,10 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
   bodydata        = new BodyData();
 
   // Make request headers
-  string ContentType;
   for(headers_t::iterator iter = meta.begin(); iter != meta.end(); ++iter){
     string key   = lower(iter->first);
     string value = iter->second;
-    if(key == "content-type"){
-      ContentType    = value;
-      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
-    }else if(key.substr(0, 9) == "x-cos-acl"){
+    if(key.substr(0, 9) == "x-cos-acl"){
       // not set value, but after set it.
     }else if(key.substr(0, 10) == "x-cos-meta"){
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
@@ -2347,8 +2343,10 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
     requestHeaders = curl_slist_sort_insert(requestHeaders, "x-cos-storage-class", "STANDARD_IA");
   }
 
-  string date    = get_date_rfc850();
-  requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  string date        = get_date_rfc850();
+  string ContentType = S3fsCurl::LookupMimeType(string(tpath));
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", "", ContentType, date, resource);
@@ -2423,14 +2421,10 @@ int S3fsCurl::PutRequest(const char* tpath, headers_t& meta, int fd)
     requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-MD5", strMD5.c_str());
   }
 
-  string ContentType;
   for(headers_t::iterator iter = meta.begin(); iter != meta.end(); ++iter){
     string key   = lower(iter->first);
     string value = iter->second;
-    if(key == "content-type"){
-      ContentType    = value;
-      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
-    }else if(key.substr(0, 9) == "x-cos-acl"){
+    if(key.substr(0, 9) == "x-cos-acl"){
       // not set value, but after set it.
     }else if(key.substr(0, 10) == "x-cos-meta"){
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
@@ -2444,9 +2438,10 @@ int S3fsCurl::PutRequest(const char* tpath, headers_t& meta, int fd)
     requestHeaders = curl_slist_sort_insert(requestHeaders, "x-cos-storage-class", "STANDARD_IA");
   }
 
-
-  string date    = get_date_rfc850();
-  requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  string date        = get_date_rfc850();
+  string ContentType = S3fsCurl::LookupMimeType(string(tpath));
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", strMD5, ContentType, date, resource);
@@ -3067,14 +3062,10 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
   headdata        = new BodyData();
 
   // Make request headers
-  string ContentType;
   for(headers_t::iterator iter = meta.begin(); iter != meta.end(); ++iter){
     string key   = lower(iter->first);
     string value = iter->second;
-    if(key == "content-type"){
-      ContentType    = value;
-      requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
-    } else if(key == "x-cos-copy-source"){
+    if(key == "x-cos-copy-source"){
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
     }else if(key == "x-cos-copy-source-range"){
       requestHeaders = curl_slist_sort_insert(requestHeaders, iter->first.c_str(), value.c_str());
@@ -3082,8 +3073,10 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
     // NOTICE: x-cos-acl, x-cos-server-side-encryption is not set!
   }
 
-  string date    = get_date_rfc850();
-  requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  string date        = get_date_rfc850();
+  string ContentType = S3fsCurl::LookupMimeType(string(to));
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", "", ContentType, date, resource);
