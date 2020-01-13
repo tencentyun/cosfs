@@ -1820,6 +1820,20 @@ FdEntity* FdManager::Open(const char* path, headers_t* pmeta, ssize_t size, time
 
   fdent_map_t::iterator iter = fent.find(string(path));
   FdEntity*             ent;
+
+  if(fent.end() == iter && !force_tmpfile && !FdManager::IsCacheDir()){
+    // If the cache directory is not specified, s3fs opens a temporary file
+    // when the file is opened.
+    // Then if it could not find a entity in map for the file, s3fs should
+    // search a entity in all which opened the temporary file.
+    //
+    for(iter = fent.begin(); iter != fent.end(); ++iter){
+      if((*iter).second && (*iter).second->IsOpen() && 0 == strcmp((*iter).second->GetPath(), path)){
+        break;      // found opened fd in mapping
+      }
+    }
+  }
+
   if(fent.end() != iter){
     // found
     ent = (*iter).second;
