@@ -2789,7 +2789,7 @@ int S3fsCurl::CompleteMultipartPostRequest(const char* tpath, string& upload_id,
   requestHeaders       = NULL;
   bodydata             = new BodyData();
   responseHeaders.clear();
-  string contype       = S3fsCurl::LookupMimeType(string(tpath));
+  string contype       = "application/xml";
 
   string date    = get_date_rfc850();
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
