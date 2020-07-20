@@ -1191,7 +1191,7 @@ static int rename_object(const char* from, const char* to)
   }
   s3_realpath = get_realpath(from);
 
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + s3_realpath);
+  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(s3_realpath.c_str()));
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
 
@@ -1538,7 +1538,7 @@ static int s3fs_chmod(const char* path, mode_t mode)
   }else{
     // normal object or directory object of newer version
     meta["x-cos-meta-mode"]          = str(mode);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(strpath.c_str()));
+    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
     meta["x-cos-metadata-directive"] = "REPLACE";
 
     if(put_headers(strpath.c_str(), meta, true) != 0){
@@ -1709,7 +1709,7 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
   }else{
     meta["x-cos-meta-uid"]           = str(uid);
     meta["x-cos-meta-gid"]           = str(gid);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(strpath.c_str()));
+    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
     meta["x-cos-metadata-directive"] = "REPLACE";
 
     if(put_headers(strpath.c_str(), meta, true) != 0){
@@ -1874,7 +1874,7 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
     }
   }else{
     meta["x-cos-meta-mtime"]         = str(ts[1].tv_sec);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(strpath.c_str()));
+    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
     meta["x-cos-metadata-directive"] = "REPLACE";
 
     if(put_headers(strpath.c_str(), meta, true) != 0){
