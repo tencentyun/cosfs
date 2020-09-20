@@ -86,11 +86,20 @@ typedef struct mvnode {
 
 class AutoLock
 {
+  public:
+      enum Type {
+          NO_WAIT        = 1,
+          ALREADY_LOCKED = 2,
+          NONE           = 0
+      };
   private:
     pthread_mutex_t* auto_mutex;
+    bool is_lock_acquired;
+  private:
+    AutoLock(const AutoLock&);
 
   public:
-    explicit AutoLock(pthread_mutex_t* pmutex);
+    explicit AutoLock(pthread_mutex_t* pmutex, Type type = NONE);
     ~AutoLock();
 };
 
@@ -113,7 +122,7 @@ bool check_exist_dir_permission(const char* dirpath);
 bool delete_files_in_dir(const char* dir, bool is_remove_own);
 
 time_t get_mtime(const char *s);
-time_t get_mtime(headers_t& meta, bool overcheck = true);
+time_t get_mtime(const headers_t& meta, bool overcheck = true);
 off_t get_size(const char *s);
 off_t get_size(headers_t& meta);
 mode_t get_mode(const char *s);
@@ -125,12 +134,14 @@ gid_t get_gid(headers_t& meta);
 blkcnt_t get_blocks(off_t size);
 time_t cvtCAMExpireStringToTime(const char* s);
 time_t get_lastmodified(const char* s);
-time_t get_lastmodified(headers_t& meta);
+time_t get_lastmodified(const headers_t& meta);
 bool is_need_check_obj_detail(headers_t& meta);
 
 void show_usage(void);
 void show_help(void);
 void show_version(void);
+bool merge_headers(headers_t& base, const headers_t& additional, bool add_noexist);
+
 
 #endif // S3FS_S3FS_UTIL_H_
 
