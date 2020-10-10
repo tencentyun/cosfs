@@ -1632,7 +1632,7 @@ int FdEntity::UploadPendingMeta()
     AutoLock auto_lock(&fdent_lock);
 
     headers_t updatemeta = orgmeta;
-    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + get_realpath(path.c_str()));
+    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(path.c_str()));
     // put headers, no need to update mtime to avoid dead lock
     int result = put_headers(path.c_str(), updatemeta, true, false);
     if(0 != result){
