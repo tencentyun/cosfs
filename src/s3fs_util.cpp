@@ -426,14 +426,40 @@ void free_mvnodes(MVNODE *head)
 //-------------------------------------------------------------------
 // Class AutoLock
 //-------------------------------------------------------------------
-AutoLock::AutoLock(pthread_mutex_t* pmutex) : auto_mutex(pmutex)
+AutoLock::AutoLock(pthread_mutex_t* pmutex, Type type) : auto_mutex(pmutex)
 {
-  pthread_mutex_lock(auto_mutex);
+    if (type == ALREADY_LOCKED) {
+        is_lock_acquired = false;
+    } else if (type == NO_WAIT) {
+        int res = pthread_mutex_trylock(auto_mutex);
+        if(res == 0){
+            is_lock_acquired = true;
+        }else if(res == EBUSY){
+            is_lock_acquired = false;
+        }else{
+            S3FS_PRN_CRIT("pthread_mutex_trylock returned: %d", res);
+            abort();
+        }
+    } else {
+        int res = pthread_mutex_lock(auto_mutex);
+        if(res == 0){
+            is_lock_acquired = true;
+        }else{
+            S3FS_PRN_CRIT("pthread_mutex_lock returned: %d", res);
+            abort();
+        }
+    }
 }
 
 AutoLock::~AutoLock()
 {
-  pthread_mutex_unlock(auto_mutex);
+    if (is_lock_acquired) {
+        int res = pthread_mutex_unlock(auto_mutex);
+        if(res != 0){
+            S3FS_PRN_CRIT("pthread_mutex_lock returned: %d", res);
+            abort();
+        }
+    }
 }
 
 //-------------------------------------------------------------------
@@ -669,7 +695,7 @@ time_t get_mtime(const char *s)
   return static_cast<time_t>(s3fs_strtoofft(s));
 }
 
-time_t get_mtime(headers_t& meta, bool overcheck)
+time_t get_mtime(const headers_t& meta, bool overcheck)
 {
   headers_t::const_iterator iter;
   if(meta.end() == (iter = meta.find("x-cos-meta-mtime"))){
@@ -806,8 +832,22 @@ time_t get_lastmodified(const char* s)
   strptime(s, "%a, %d %b %Y %H:%M:%S %Z", &tm);
   return timegm(&tm); // GMT
 }
+// [NOTE]
+// If add_noexist is false and the key does not exist, it will not be added.
+//
+bool merge_headers(headers_t& base, const headers_t& additional, bool add_noexist)
+{
+  bool added = false;
+  for(headers_t::const_iterator iter = additional.begin(); iter != additional.end(); ++iter){
+    if(add_noexist || base.find(iter->first) != base.end()){
+      base[iter->first] = iter->second;
+      added             = true;
+    }
+  }
+  return added;
+}
 
-time_t get_lastmodified(headers_t& meta)
+time_t get_lastmodified(const headers_t& meta)
 {
   headers_t::const_iterator iter;
   if(meta.end() == (iter = meta.find("Last-Modified"))){

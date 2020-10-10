@@ -617,7 +617,8 @@ int FdEntity::FillFile(int fd, unsigned char byte, size_t size, off_t start)
 //------------------------------------------------
 FdEntity::FdEntity(const char* tpath, const char* cpath)
         : is_lock_init(false), refcnt(0), path(SAFESTRPTR(tpath)), cachepath(SAFESTRPTR(cpath)),
-          fd(-1), pfile(NULL), is_modify(false), size_orgmeta(0), upload_id(""), mp_start(0), mp_size(0)
+          fd(-1), pfile(NULL), is_modify(false), size_orgmeta(0), upload_id(""), mp_start(0), mp_size(0),
+          is_meta_pending(false)
 {
   try{
     pthread_mutexattr_t attr;
@@ -892,14 +893,33 @@ bool FdEntity::GetStats(struct stat& st)
   return true;
 }
 
-int FdEntity::SetMtime(time_t time)
+bool FdEntity::GetXattr(std::string& xattr)
+{
+    AutoLock auto_lock(&fdent_lock);
+
+    headers_t::const_iterator iter = orgmeta.find("x-cos-meta-xattr");
+    if(iter == orgmeta.end()){
+        return false;
+    }
+    xattr = iter->second;
+    return true;
+}
+
+bool FdEntity::SetXattr(const std::string& xattr)
+{
+    AutoLock auto_lock(&fdent_lock);
+    orgmeta["x-cos-meta-xattr"] = xattr;
+    return true;
+}
+
+int FdEntity::SetMtime(time_t time, bool lock_already_held)
 {
   S3FS_PRN_INFO3("[path=%s][fd=%d][time=%jd]", path.c_str(), fd, (intmax_t)time);
 
   if(-1 == time){
     return 0;
   }
-  AutoLock auto_lock(&fdent_lock);
+  AutoLock auto_lock(&fdent_lock, lock_already_held ? AutoLock::ALREADY_LOCKED : AutoLock::NONE);
   if(-1 != fd){
 
     struct timeval tv[2];
@@ -1410,6 +1430,10 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
       // So the file has already been removed, skip error.
       S3FS_PRN_ERR("failed to truncate file(%d) to zero, but continue...", fd);
     }
+    // put pending headers
+    if(0 != (result = UploadPendingMeta())){
+      return result;
+    }
   }
 
   if(0 == result){
@@ -1561,6 +1585,63 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   return wsize;
 }
 
+
+// [NOTE]
+// Returns true if merged to orgmeta.
+// If true is returned, the caller can update the header.
+// If it is false, do not update the header because multipart upload is in progress.
+// In this case, the header is pending internally and is updated after the upload
+// is complete(flush file).
+//
+bool FdEntity::MergeOrgMeta(headers_t& updatemeta)
+{
+    AutoLock auto_lock(&fdent_lock);
+
+    merge_headers(orgmeta, updatemeta, true);      // overwrite all keys
+    // [NOTE]
+    // this is special cases, we remove the key which has empty values.
+    for(headers_t::iterator hiter = orgmeta.begin(); hiter != orgmeta.end(); ){
+        if(hiter->second.empty()){
+            orgmeta.erase(hiter++);
+        }else{
+            ++hiter;
+        }
+    }
+    updatemeta = orgmeta;
+    orgmeta.erase("x-cos-copy-source");
+
+    // update ctime/mtime
+    time_t updatetime = get_mtime(updatemeta, false);  // not overcheck
+    if(0 != updatetime){
+        SetMtime(updatetime, true);
+    }
+    is_meta_pending |= !upload_id.empty();
+
+    return is_meta_pending;
+}
+
+
+// global function in s3fs.cpp
+int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mtime);
+
+int FdEntity::UploadPendingMeta()
+{
+    if(!is_meta_pending) {
+        return 0;
+    }
+    AutoLock auto_lock(&fdent_lock);
+
+    headers_t updatemeta = orgmeta;
+    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(path.c_str()));
+    // put headers, no need to update mtime to avoid dead lock
+    int result = put_headers(path.c_str(), updatemeta, true, false);
+    if(0 != result){
+        S3FS_PRN_ERR("failed to put header after flushing file(%s) by(%d).", path.c_str(), result);
+    }
+    is_meta_pending = false;
+
+    return result;
+}
 //------------------------------------------------
 // FdManager symbol
 //------------------------------------------------

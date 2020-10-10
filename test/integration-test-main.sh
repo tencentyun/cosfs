@@ -476,7 +476,7 @@ function test_file_size_in_stat_cache {
 function run_all_tests {
     test_append_file
 #    test_truncate_file
-    test_truncate_empty_file
+    #test_truncate_empty_file
     test_mv_file
     test_mv_directory
     test_redirects
@@ -486,12 +486,12 @@ function run_all_tests {
     test_list
     test_list_many_files
     # XXX: Haoran: Do not know why this case failed in script but passed by manually run.
-    #test_remove_nonempty_directory
+    test_remove_nonempty_directory
     # TODO: broken: https://github.com/s3fs-fuse/s3fs-fuse/issues/145
     #test_rename_before_close
     test_multipart_upload
     # TODO: test disabled until S3Proxy 1.5.0 is released
-    #test_multipart_copy
+    test_multipart_copy
     test_special_characters
     test_symlink
     test_extended_attributes
