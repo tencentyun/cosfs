@@ -154,7 +154,7 @@ static xmlChar* get_base_exp(xmlDocPtr doc, const char* exp);
 static xmlChar* get_prefix(xmlDocPtr doc);
 static xmlChar* get_next_marker(xmlDocPtr doc);
 static char* get_object_name(xmlDocPtr doc, xmlNodePtr node, const char* path);
-static int put_headers(const char* path, headers_t& meta, bool is_copy);
+int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mtime = true);
 static int rename_large_object(const char* from, const char* to);
 static int create_file_object(const char* path, mode_t mode, uid_t uid, gid_t gid);
 static int create_directory_object(const char* path, mode_t mode, time_t time, uid_t uid, gid_t gid);
@@ -750,7 +750,7 @@ static FdEntity* get_local_fent(const char* path, bool is_load)
  * ow_sse_flg is for over writing sse header by use_sse option.
  * @return fuse return code
  */
-static int put_headers(const char* path, headers_t& meta, bool is_copy)
+int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mtime)
 {
   int         result;
   S3fsCurl    s3fscurl(true);
@@ -775,17 +775,19 @@ static int put_headers(const char* path, headers_t& meta, bool is_copy)
   }
 
   FdEntity* ent = NULL;
-  if(NULL == (ent = FdManager::get()->ExistOpen(path, -1, !(FdManager::get()->IsCacheDir())))){
-    // no opened fd
-    if(FdManager::get()->IsCacheDir()){
-      // create cache file if be needed
-      ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true);
-    }
-  }
-  if(ent){
-    time_t mtime = get_mtime(meta);
-    ent->SetMtime(mtime);
-    FdManager::get()->Close(ent);
+  if(update_mtime && '/' != path[strlen(path) - 1]){
+      if(NULL == (ent = FdManager::get()->ExistOpen(path, -1, !(FdManager::get()->IsCacheDir())))){
+          // no opened fd
+          if(FdManager::get()->IsCacheDir()){
+              // create cache file if be needed
+              ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true);
+          }
+      }
+      if(ent){
+          time_t mtime = get_mtime(meta);
+          ent->SetMtime(mtime);
+          FdManager::get()->Close(ent);
+      }
   }
 
   return 0;
@@ -1537,14 +1539,42 @@ static int s3fs_chmod(const char* path, mode_t mode)
     }
   }else{
     // normal object or directory object of newer version
-    meta["x-cos-meta-mode"]          = str(mode);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
-    meta["x-cos-metadata-directive"] = "REPLACE";
+    headers_t updatemeta;
+    updatemeta["x-cos-meta-mode"]          = str(mode);
+    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
+    updatemeta["x-cos-metadata-directive"] = "REPLACE";
 
-    if(put_headers(strpath.c_str(), meta, true) != 0){
-      return -EIO;
+    // check opened file handle.
+    //
+    // If the file starts uploading by multipart when the disk capacity is insufficient,
+    // we need to put these header after finishing upload.
+    // Or if the file is only open, we must update to FdEntity's internal meta.
+    //
+    FdEntity* ent;
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+        // the file is opened now.
+        if(ent->MergeOrgMeta(updatemeta)){
+            // now uploading
+            // the meta is pending and accumulated to be put after the upload is complete.
+            S3FS_PRN_INFO("meta pending until upload is complete");
+        }else{
+            // allow to put header
+            // updatemeta already merged the orgmeta of the opened files.
+            if(0 != put_headers(strpath.c_str(), updatemeta, true)){
+                FdManager::get()->Close(ent);
+                return -EIO;
+            }
+            StatCache::getStatCacheData()->DelStat(nowcache);
+        }
+        FdManager::get()->Close(ent);
+  }else{
+        // not opened file, then put headers
+        merge_headers(meta, updatemeta, true);
+        if(0 != put_headers(strpath.c_str(), meta, true)){
+        return -EIO;
     }
     StatCache::getStatCacheData()->DelStat(nowcache);
+    }
   }
   S3FS_MALLOCTRIM(0);
 
@@ -1707,15 +1737,44 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
       return result;
     }
   }else{
-    meta["x-cos-meta-uid"]           = str(uid);
-    meta["x-cos-meta-gid"]           = str(gid);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
-    meta["x-cos-metadata-directive"] = "REPLACE";
+    headers_t updatemeta;
 
-    if(put_headers(strpath.c_str(), meta, true) != 0){
-      return -EIO;
+    updatemeta["x-cos-meta-uid"]           = str(uid);
+    updatemeta["x-cos-meta-gid"]           = str(gid);
+    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
+    updatemeta["x-cos-metadata-directive"] = "REPLACE";
+
+    // check opened file handle.
+    //
+    // If the file starts uploading by multipart when the disk capacity is insufficient,
+    // we need to put these header after finishing upload.
+    // Or if the file is only open, we must update to FdEntity's internal meta.
+    //
+    FdEntity* ent;
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+        // the file is opened now.
+        if(ent->MergeOrgMeta(updatemeta)){
+            // now uploading
+            // the meta is pending and accumulated to be put after the upload is complete.
+            S3FS_PRN_INFO("meta pending until upload is complete");
+        }else{
+            // allow to put header
+            // updatemeta already merged the orgmeta of the opened files.
+            if(0 != put_headers(strpath.c_str(), updatemeta, true)){
+                FdManager::get()->Close(ent);
+                return -EIO;
+            }
+            StatCache::getStatCacheData()->DelStat(nowcache);
+        }
+        FdManager::get()->Close(ent);
+   }else{
+        // not opened file, then put headers
+        merge_headers(meta, updatemeta, true);
+        if(0 != put_headers(strpath.c_str(), meta, true)){
+        	return -EIO;
+        }
+        StatCache::getStatCacheData()->DelStat(nowcache);
     }
-    StatCache::getStatCacheData()->DelStat(nowcache);
   }
   S3FS_MALLOCTRIM(0);
 
@@ -1873,14 +1932,41 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
       return result;
     }
   }else{
-    meta["x-cos-meta-mtime"]         = str(ts[1].tv_sec);
-    meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
-    meta["x-cos-metadata-directive"] = "REPLACE";
-
-    if(put_headers(strpath.c_str(), meta, true) != 0){
-      return -EIO;
+    headers_t updatemeta;
+    updatemeta["x-cos-meta-mtime"]         = str(ts[1].tv_sec);
+    updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid +  get_realpath(strpath.c_str()));
+    updatemeta["x-cos-metadata-directive"] = "REPLACE";
+    // check opened file handle.
+    //
+    // If the file starts uploading by multipart when the disk capacity is insufficient,
+    // we need to put these header after finishing upload.
+    // Or if the file is only open, we must update to FdEntity's internal meta.
+    //
+    FdEntity* ent;
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+        // the file is opened now.
+        if(ent->MergeOrgMeta(updatemeta)){
+            // now uploading
+            // the meta is pending and accumulated to be put after the upload is complete.
+            S3FS_PRN_INFO("meta pending until upload is complete");
+        }else{
+            // allow to put header
+            // updatemeta already merged the orgmeta of the opened files.
+            if(0 != put_headers(strpath.c_str(), updatemeta, true)){
+                FdManager::get()->Close(ent);
+                return -EIO;
+            }
+            StatCache::getStatCacheData()->DelStat(nowcache);
+        }
+        FdManager::get()->Close(ent);
+    }else{
+        // not opened file, then put headers
+        merge_headers(meta, updatemeta, true);
+        if(0 != put_headers(strpath.c_str(), meta, true)){
+            return -EIO;
+        }
+        StatCache::getStatCacheData()->DelStat(nowcache);
     }
-    StatCache::getStatCacheData()->DelStat(nowcache);
   }
   S3FS_MALLOCTRIM(0);
 
@@ -3113,14 +3199,63 @@ static int s3fs_setxattr(const char* path, const char* name, const char* value, 
     nowcache = strpath;
   }
 
-  // set xattr all object
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
-  meta["x-cos-metadata-directive"] = "REPLACE";
 
-  if(0 != put_headers(strpath.c_str(), meta, true)){
-    return -EIO;
+  // set xattr all object
+  headers_t updatemeta;
+
+  updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
+  updatemeta["x-cos-metadata-directive"] = "REPLACE";
+  // check opened file handle.
+  //
+  // If the file starts uploading by multipart when the disk capacity is insufficient,
+  // we need to put these header after finishing upload.
+  // Or if the file is only open, we must update to FdEntity's internal meta.
+  //
+  FdEntity* ent;
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+      // the file is opened now.
+      // get xattr and make new xattr
+      std::string strxattr;
+      if(ent->GetXattr(strxattr)){
+          updatemeta["x-cos-meta-xattr"] = strxattr;
+      }else{
+          // [NOTE]
+          // Set an empty xattr.
+          // This requires the key to be present in order to add xattr.
+          ent->SetXattr(strxattr);
+      }
+      if(0 != (result = set_xattrs_to_header(updatemeta, name, value, size, flags))){
+          FdManager::get()->Close(ent);
+          return result;
+      }
+
+      if(ent->MergeOrgMeta(updatemeta)){
+          // now uploading
+          // the meta is pending and accumulated to be put after the upload is complete.
+          S3FS_PRN_INFO("meta pending until upload is complete");
+      }else{
+          // allow to put header
+          // updatemeta already merged the orgmeta of the opened files.
+          if(0 != put_headers(strpath.c_str(), updatemeta, true)){
+              FdManager::get()->Close(ent);
+              return -EIO;
+          }
+          StatCache::getStatCacheData()->DelStat(nowcache);
+      }
+      FdManager::get()->Close(ent);
+  }else{
+      // not opened file, then put headers
+      merge_headers(meta, updatemeta, true);
+      // NOTICE: modify xattr from base meta
+      if(0 != (result = set_xattrs_to_header(meta, name, value, size, flags))){
+          return result;
+      }
+
+      if(0 != put_headers(strpath.c_str(), meta, true)){
+          return -EIO;
+      }
+      StatCache::getStatCacheData()->DelStat(nowcache);
   }
-  StatCache::getStatCacheData()->DelStat(nowcache);
 
   return 0;
 }
@@ -3377,16 +3512,54 @@ static int s3fs_removexattr(const char* path, const char* name)
   }
 
   // set xattr all object
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
-  meta["x-cos-metadata-directive"] = "REPLACE";
+  headers_t updatemeta;
 
-  if(0 != put_headers(strpath.c_str(), meta, true)){
-    free_xattrs(xattrs);
-    return -EIO;
+  updatemeta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(strpath.c_str()));
+  updatemeta["x-cos-metadata-directive"] = "REPLACE";
+  if(!xattrs.empty()){
+      updatemeta["x-cos-meta-xattr"]     = build_xattrs(xattrs);
+  }else{
+      updatemeta["x-cos-meta-xattr"]     = std::string("");      // This is a special case. If empty, this header will eventually be removed.
   }
-  StatCache::getStatCacheData()->DelStat(nowcache);
-
   free_xattrs(xattrs);
+
+  // check opened file handle.
+  //
+  // If the file starts uploading by multipart when the disk capacity is insufficient,
+  // we need to put these header after finishing upload.
+  // Or if the file is only open, we must update to FdEntity's internal meta.
+  //
+  FdEntity* ent;
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+      // the file is opened now.
+      if(ent->MergeOrgMeta(updatemeta)){
+          // now uploading
+          // the meta is pending and accumulated to be put after the upload is complete.
+          S3FS_PRN_INFO("meta pending until upload is complete");
+      }else{
+          // allow to put header
+          // updatemeta already merged the orgmeta of the opened files.
+          if(updatemeta["x-cos-meta-xattr"].empty()){
+              updatemeta.erase("x-cos-meta-xattr");
+          }
+          if(0 != put_headers(strpath.c_str(), updatemeta, true)){
+              FdManager::get()->Close(ent);
+              return -EIO;
+          }
+          StatCache::getStatCacheData()->DelStat(nowcache);
+      }
+      FdManager::get()->Close(ent);
+  }else{
+      // not opened file, then put headers
+      if(updatemeta["x-cos-meta-xattr"].empty()){
+          updatemeta.erase("x-cos-meta-xattr");
+      }
+      merge_headers(meta, updatemeta, true);
+      if(0 != put_headers(strpath.c_str(), meta, true)){
+          return -EIO;
+      }
+      StatCache::getStatCacheData()->DelStat(nowcache);
+  }
 
   return 0;
 }
