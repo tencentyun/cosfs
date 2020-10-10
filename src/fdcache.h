@@ -126,7 +126,6 @@ class FdEntity
     etaglist_t      etaglist;       // for no cached multipart uploading when no disk space
     off_t           mp_start;       // start position for no cached multipart(write method only)
     size_t          mp_size;        // size for no cached multipart(write method only)
-    bool            is_meta_pending;
 
   private:
     static int FillFile(int fd, unsigned char byte, size_t size, off_t start);
@@ -135,8 +134,6 @@ class FdEntity
     bool SetAllStatus(bool is_loaded);                          // [NOTE] not locking
     //bool SetAllStatusLoaded(void) { return SetAllStatus(true); }
     bool SetAllStatusUnloaded(void) { return SetAllStatus(false); }
-    int UploadPendingMeta(void);
-
 
   public:
     explicit FdEntity(const char* tpath = NULL, const char* cpath = NULL);
@@ -153,16 +150,13 @@ class FdEntity
     int GetFd(void) const { return fd; }
 
     bool GetStats(struct stat& st);
-    int SetMtime(time_t time, bool lock_already_held = false);
+    int SetMtime(time_t time);
     bool UpdateMtime(void);
     bool GetSize(size_t& size);
     bool SetMode(mode_t mode);
     bool SetUId(uid_t uid);
     bool SetGId(gid_t gid);
     bool SetContentType(const char* path);
-    bool GetXattr(std::string& xattr);
-    bool SetXattr(const std::string& xattr);
-    bool MergeOrgMeta(headers_t& updatemeta);
 
     int Load(off_t start = 0, size_t size = 0);                 // size=0 means loading to end
     int NoCacheLoadAndPost(off_t start = 0, size_t size = 0);   // size=0 means loading to end
