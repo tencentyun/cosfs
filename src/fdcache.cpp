@@ -63,6 +63,8 @@ using namespace std;
 #define TMPFILE_DIR_0PATH   "/tmp"
 #endif
 
+size_t FdEntity::max_prefetch_bytes = 100 * 1024 * 1024;
+
 //------------------------------------------------
 // CacheFileStat class methods
 //------------------------------------------------
@@ -1442,6 +1444,10 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
   return result;
 }
 
+size_t FdEntity::GetPretchSize() {
+  return min(static_cast<size_t>(S3fsCurl::GetMultipartSize() * S3fsCurl::GetMaxParallelCount()), max_prefetch_bytes);
+}
+
 ssize_t FdEntity::Read(char* bytes, off_t start, size_t size, bool force_load)
 {
   S3FS_PRN_DBG("[path=%s][fd=%d][offset=%jd][size=%zu]", path.c_str(), fd, (intmax_t)start, size);
@@ -1480,7 +1486,7 @@ ssize_t FdEntity::Read(char* bytes, off_t start, size_t size, bool force_load)
     // load size(for prefetch)
     size_t load_size = size;
     if(static_cast<size_t>(start + size) < pagelist.Size()){
-      size_t prefetch_max_size = max(size, static_cast<size_t>(S3fsCurl::GetMultipartSize() * S3fsCurl::GetMaxParallelCount()));
+      size_t prefetch_max_size = max(size, FdEntity::GetPretchSize());
 
       if(static_cast<size_t>(start + prefetch_max_size) < pagelist.Size()){
         load_size = prefetch_max_size;

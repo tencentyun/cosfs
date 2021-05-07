@@ -127,7 +127,8 @@ class FdEntity
     off_t           mp_start;       // start position for no cached multipart(write method only)
     size_t          mp_size;        // size for no cached multipart(write method only)
     bool            is_meta_pending;
-
+  private:
+    static size_t max_prefetch_bytes;
   private:
     static int FillFile(int fd, unsigned char byte, size_t size, off_t start);
 
@@ -141,7 +142,9 @@ class FdEntity
   public:
     explicit FdEntity(const char* tpath = NULL, const char* cpath = NULL);
     ~FdEntity();
-
+    static void SetMaxPrefetchBytes(size_t size) { max_prefetch_bytes = size; }
+    static size_t GetPretchSize();   
+  
     void Close(void);
     bool IsOpen(void) const { return (-1 != fd); }
     int Open(headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1);
