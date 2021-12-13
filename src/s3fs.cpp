@@ -4556,6 +4556,12 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       S3fsMultiCurl::SetMaxMultiRequest(maxreq);
       return 0;
     }
+    if(0 == STR2NCMP(arg, "max_prefetch_bytes=")){
+      size_t max_prefetch_bytes = static_cast<size_t>(s3fs_strtoofft(strchr(arg, '=') + sizeof(char)));
+      FdEntity::SetMaxPrefetchBytes(max_prefetch_bytes);
+      S3FS_PRN_CRIT("max_prefetch_bytes:%zu", max_prefetch_bytes);
+      return 0;
+    }
     if(0 == strcmp(arg, "nonempty")){
       nonempty = true;
       return 1; // need to continue for fuse.
