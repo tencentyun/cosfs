@@ -1,6 +1,6 @@
 #!/bin/bash
 #Usage:
-#1. Mount bucket: cosfs test-1253960454 mnt_dir -ourl=http://cos.ap-shanghai.myqcloud.com -odbglevel=dbg -ocurldbg -oallow_other 
+#1. Mount bucket: cosfs test-12500000 mnt_dir -ourl=http://cos.ap-shanghai.myqcloud.com -odbglevel=dbg -ocurldbg -oallow_other 
 #2. Run the script with mount point parameter: ./integration-test-main.sh mnt_dir
 #3. If all test cases pass, "All tests complete" will be output, otherwise the corresponding error message will be output.
 
