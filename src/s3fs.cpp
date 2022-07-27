@@ -1193,7 +1193,7 @@ static int rename_object(const char* from, const char* to)
   }
   s3_realpath = get_realpath(from);
 
-  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + get_realpath(s3_realpath.c_str()));
+  meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + s3_realpath.c_str());
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
 
