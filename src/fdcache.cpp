@@ -1622,6 +1622,7 @@ bool FdEntity::MergeOrgMeta(headers_t& updatemeta)
         SetMtime(updatetime, true);
     }
     is_meta_pending |= !upload_id.empty();
+    is_meta_pending |= is_modify;
 
     return is_meta_pending;
 }
