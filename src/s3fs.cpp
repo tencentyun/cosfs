@@ -4860,7 +4860,7 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
          found  = host.find_last_of('/');
          length = host.length();
       }
-      if((host.compare(0, 12, "https://cos.") != 0) && (host.compare(0, 11, "http://cos.") != 0)) {
+      if((host.compare(0, 11, "https://cos") != 0) && (host.compare(0, 10, "http://cos") != 0)) {
          fprintf(stdout, "Warn:option url has invalid format:%s, correct example:-ourl=http://cos.ap-guangzhou.myqcloud.com\n", host.c_str());
       }
       // if use https and libcurl version greater or equal to 3.12.3, should set environment NSS_STRICT_NOFORK=DISABLED
