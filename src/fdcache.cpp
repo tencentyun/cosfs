@@ -1413,6 +1413,7 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
     }
 
   }else{
+    S3FS_PRN_INFO3("[path=%s][fd=%d] already being upload", path.c_str(), fd);
     // upload rest data
     if(0 < mp_size){
       if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
@@ -1591,6 +1592,42 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
   return wsize;
 }
 
+int FdEntity::GetRefCount() {
+  AutoLock auto_lock(&fdent_lock);
+  return refcnt;
+}
+
+// this function only truncate file size in local, not flush to cos
+// the refcnt must bigger than 1, in order to flush the truncate result later
+// the flush trigger after user call close
+int FdEntity::Ftruncate(ssize_t size) {
+    AutoLock auto_lock(&fdent_lock);
+        // if size is equal, do nothing
+    if (static_cast<size_t>(size) == pagelist.Size()) {
+      return 0;
+    }
+    if (refcnt <= 1) {
+        S3FS_PRN_ERR("failed to truncate file %s, refcnt(%d)", path.c_str(), refcnt);
+        return -EIO;
+    }
+    // file being upload, this is due to space not enough, we not support truncate in this situation
+    if (!upload_id.empty()) {
+      S3FS_PRN_ERR("failed to truncate file %s, because not enough space.", path.c_str());
+      return -ENOSPC;
+    }
+    // truncate temporary file size
+    if(-1 == ftruncate(fd, size) || -1 == fsync(fd)){
+      S3FS_PRN_ERR("failed to truncate temporary file %s by errno(%d).",  path.c_str(), errno);
+      return -errno;
+    }
+    if(!is_modify){
+      is_modify = true;
+    }
+    // resize pagelist
+    pagelist.Resize(static_cast<size_t>(size), false);
+    return 0;
+}
+
 
 // [NOTE]
 // Returns true if merged to orgmeta.
@@ -1649,6 +1686,7 @@ int FdEntity::UploadPendingMeta()
 
     return result;
 }
+
 //------------------------------------------------
 // FdManager symbol
 //------------------------------------------------

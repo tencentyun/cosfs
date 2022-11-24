@@ -2093,7 +2093,16 @@ static int s3fs_truncate(const char* path, off_t size)
       FdManager::get()->Close(ent);
       return result;
     }
-
+     // the file already opened for write, for exmaple open->ftruncate
+    // in this case we truncate in local disk, the flush will be delay to nearest flush
+    if (ent->GetRefCount() > 1) {
+      S3FS_PRN_DBG("[path=%s] already opened for writing, truncate it in local", path);
+      result = ent->Ftruncate(size);
+      FdManager::get()->Close(ent);
+      return result;
+    }
+    // the file not writing for others, we can safe flush to cos
+    S3FS_PRN_DBG("[path=%s] not being written, ready flush to cos", path);
   }else{
     // Not found -> Make tmpfile(with size)
 

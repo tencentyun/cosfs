@@ -1,7 +1,7 @@
 #!/bin/bash
 #Usage:
 #1. Mount bucket: cosfs test-12500000 mnt_dir -ourl=http://cos.ap-shanghai.myqcloud.com -odbglevel=dbg -ocurldbg -oallow_other 
-#2. Run the script with mount point parameter: ./integration-test-main.sh mnt_dir
+#2. Run the script with mount point parameter:bash test/integration-test-main.sh /root/cosfs-yongqing/mnt/ ap-guangzhou test-125000000
 #3. If all test cases pass, "All tests complete" will be output, otherwise the corresponding error message will be output.
 
 set -o xtrace
@@ -21,6 +21,8 @@ BIG_FILE=big-file-s3fs.txt
 BIG_FILE_LENGTH=$((25 * 1024 * 1024))
 CUR_DIR=`pwd`
 TEST_BUCKET_MOUNT_POINT_1=$1
+TEST_BUCKET_REGION=$2
+TEST_BUCKET_NAME=$3
 
 function mk_test_file {
     if [ $# == 0 ]; then
@@ -120,7 +122,7 @@ function test_truncate_file {
 function test_truncate_empty_file {
     echo "Testing truncate empty file ..."
     # Write an empty test file
-    touch ${TEST_TEXT_FILE}
+    echo "data" > ${TEST_TEXT_FILE}
 
     # Truncate the file to 1024 length
     t_size=1024
@@ -133,6 +135,30 @@ function test_truncate_empty_file {
         echo "error: expected ${TEST_TEXT_FILE} to be $t_size length, got $size"
         exit 1
     fi
+    first_chars=`head -c 4 ${TEST_TEXT_FILE}`
+    if [ "$first_chars" != "data" ]
+    then
+        echo "error: expected first 4 byte is 'data' got $first_chars"
+        exit 1
+    fi
+     # Truncate the file to 1024 length
+    t_size=3
+    truncate ${TEST_TEXT_FILE} -s $t_size
+
+    # Verify file is zero length
+    size=$(stat -c %s ${TEST_TEXT_FILE})
+    if [ $t_size -ne $size ]
+    then
+        echo "error: expected ${TEST_TEXT_FILE} to be $t_size length, got $size"
+        exit 1
+    fi
+    first_chars=`head -c 4 ${TEST_TEXT_FILE}`
+    if [ "$first_chars" != "dat" ]
+    then
+        echo "error: expected first 4 byte is 'dat' got $first_chars"
+        exit 1
+    fi
+
     rm_test_file
 }
 
@@ -522,10 +548,16 @@ function test_file_size_in_stat_cache {
     python3 $CUR_DIR/test/stat_cache_test.py $TEST_BUCKET_MOUNT_POINT_1
 }
 
+function test_integration_test {
+   echo "Testing integration test..."
+   python3 $CUR_DIR/test/integration-test.py $TEST_BUCKET_MOUNT_POINT_1 $TEST_BUCKET_REGION $TEST_BUCKET_NAME
+}
+
 function run_all_tests {
+    test_integration_test
     test_append_file
-    # test_truncate_file
-    # test_truncate_empty_file
+    test_truncate_file
+    test_truncate_empty_file
     test_mv_file
     test_mv_bigfile
     test_mv_directory
@@ -548,21 +580,24 @@ function run_all_tests {
     test_mtime_file
     test_file_size_in_stat_cache
 }
-
+pip install -U cos-python-sdk-v5
+if [ ! -f coscli-linux ]; then
+  wget "https://cosbrowser.cloud.tencent.com/software/coscli/coscli-linux"
+  chmod a+x coscli-linux
+fi
 # Mount the bucket
 if [ "$TEST_BUCKET_MOUNT_POINT_1" == "" ]; then
     echo "Mountpoint missing"
     exit 1
 fi
 cd $TEST_BUCKET_MOUNT_POINT_1
+rm -rf *
 
 if [ -e $TEST_TEXT_FILE ]
 then
   rm -f $TEST_TEXT_FILE
 fi
 
-rm -rf *
-pip install -U cos-python-sdk-v5
 SECONDS=0
 run_all_tests
 duration=$SECONDS

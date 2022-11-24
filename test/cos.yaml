@@ -1,0 +1,11 @@
+cos:
+  base:
+    secretid: xxxxx
+    secretkey: yyyyy
+    sessiontoken: zzzz
+    protocol: https
+  buckets:
+  - name: ""
+    alias: ""
+    region: ""
+    endpoint: ""
