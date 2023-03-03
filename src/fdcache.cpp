@@ -780,7 +780,7 @@ int FdEntity::Open(headers_t* pmeta, ssize_t size, time_t time)
     // not using cache
 
     // open temporary file
-    if(NULL == (pfile = tmpfile()) || -1 ==(fd = fileno(pfile))){
+    if(NULL == (pfile = FdManager::MakeTempFile()) || -1 ==(fd = fileno(pfile))){
       S3FS_PRN_ERR("failed to open tmp file. err(%d)", errno);
       if(pfile){
         fclose(pfile);
@@ -1713,6 +1713,7 @@ pthread_mutex_t FdManager::fd_manager_lock;
 bool            FdManager::is_lock_init(false);
 string          FdManager::cache_dir("");
 size_t          FdManager::free_disk_space = 0;
+std::string     FdManager::tmp_dir = "";
 
 //------------------------------------------------
 // FdManager class methods
@@ -1857,6 +1858,28 @@ fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path)
     return 0;
   }
   return (vfsbuf.f_bavail * vfsbuf.f_bsize);
+}
+
+FILE* FdManager::MakeTempFile() {
+    if (tmp_dir.empty()) {
+      return tmpfile();
+    }
+    int fd;
+    char cfn[PATH_MAX];
+    std::string fn = tmp_dir + "/cosfstmp.XXXXXX";
+    strncpy(cfn, fn.c_str(), sizeof(cfn) - 1);
+    cfn[sizeof(cfn) - 1] = '\0';
+
+    fd = mkstemp(cfn);
+    if (-1 == fd) {
+        S3FS_PRN_ERR("failed to create tmp file. errno(%d)", errno);
+        return NULL;
+    }
+    if (-1 == unlink(cfn)) {
+        S3FS_PRN_ERR("failed to delete tmp file. errno(%d)", errno);
+        return NULL;
+    }
+    return fdopen(fd, "rb+");
 }
 
 bool FdManager::IsSafeDiskSpace(const char* path, size_t size)
@@ -2059,6 +2082,16 @@ bool FdManager::Close(FdEntity* ent)
     }
   }
   return false;
+}
+
+bool FdManager::SetTmpDir(const char *dir)
+{
+    if(!dir || '\0' == dir[0]){
+        tmp_dir = "/tmp";
+    }else{
+        tmp_dir = dir;
+    }
+    return true;
 }
 
 bool FdManager::ChangeEntityToTempPath(FdEntity* ent, const char* path)

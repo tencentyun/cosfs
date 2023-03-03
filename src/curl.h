@@ -237,7 +237,7 @@ class S3fsCurl
     static int              max_parallel_cnt;
     static off_t            multipart_size;
     static bool             is_sigv4;
-    static const std::string skUserAgent;
+    static std::string skUserAgent;
 
     // variables
     CURL*                hCurl;
@@ -320,6 +320,7 @@ class S3fsCurl
     static int ParallelMultipartUploadRequest(const char* tpath, headers_t& meta, int fd);
     static int ParallelGetObjectRequest(const char* tpath, int fd, off_t start, ssize_t size);
     static bool CheckRAMCredentialUpdate(void);
+    static bool SetUserAgentSuffix(const std::string& suffix);
 
     // class methods(valiables)
     static std::string LookupMimeType(std::string name);

@@ -4583,6 +4583,15 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       noxattr = true;
       return 0;
     }
+    if(0 == STR2NCMP(arg, "user_agent_suffix=")){
+      std::string user_agent_suffix = string(strchr(arg, '=') + sizeof(char));
+      S3fsCurl::SetUserAgentSuffix(user_agent_suffix);
+      return 0;
+    }
+    if(0 == STR2NCMP(arg, "tmpdir=")){
+      FdManager::SetTmpDir(strchr(arg, '=') + sizeof(char));
+      return 0;
+    }
     // old format for storage_class
     if(0 == strcmp(arg, "use_rrs") || 0 == STR2NCMP(arg, "use_rrs=")){
       off_t rrs = 1;
@@ -4911,6 +4920,7 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       is_specified_endpoint = true;
       return 0;
     }
+
     if(0 == strcmp(arg, "use_path_request_style")){
       pathrequeststyle = true;
       return 0;
