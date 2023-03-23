@@ -1,7 +1,7 @@
 #!/bin/bash
 #Usage:
 #1. Mount bucket: cosfs test-12500000 mnt_dir -ourl=http://cos.ap-shanghai.myqcloud.com -odbglevel=dbg -ocurldbg -oallow_other 
-#2. Run the script with mount point parameter: ./integration-test-main.sh mnt_dir
+#2. Run the script with mount point parameter:bash test/integration-test-main.sh /root/cosfs-yongqing/mnt/ ap-guangzhou test-125000000
 #3. If all test cases pass, "All tests complete" will be output, otherwise the corresponding error message will be output.
 
 set -o xtrace
@@ -21,6 +21,8 @@ BIG_FILE=big-file-s3fs.txt
 BIG_FILE_LENGTH=$((25 * 1024 * 1024))
 CUR_DIR=`pwd`
 TEST_BUCKET_MOUNT_POINT_1=$1
+TEST_BUCKET_REGION=$2
+TEST_BUCKET_NAME=$3
 
 function mk_test_file {
     if [ $# == 0 ]; then
@@ -120,7 +122,7 @@ function test_truncate_file {
 function test_truncate_empty_file {
     echo "Testing truncate empty file ..."
     # Write an empty test file
-    touch ${TEST_TEXT_FILE}
+    echo "data" > ${TEST_TEXT_FILE}
 
     # Truncate the file to 1024 length
     t_size=1024
@@ -133,6 +135,30 @@ function test_truncate_empty_file {
         echo "error: expected ${TEST_TEXT_FILE} to be $t_size length, got $size"
         exit 1
     fi
+    first_chars=`head -c 4 ${TEST_TEXT_FILE}`
+    if [ "$first_chars" != "data" ]
+    then
+        echo "error: expected first 4 byte is 'data' got $first_chars"
+        exit 1
+    fi
+     # Truncate the file to 1024 length
+    t_size=3
+    truncate ${TEST_TEXT_FILE} -s $t_size
+
+    # Verify file is zero length
+    size=$(stat -c %s ${TEST_TEXT_FILE})
+    if [ $t_size -ne $size ]
+    then
+        echo "error: expected ${TEST_TEXT_FILE} to be $t_size length, got $size"
+        exit 1
+    fi
+    first_chars=`head -c 4 ${TEST_TEXT_FILE}`
+    if [ "$first_chars" != "dat" ]
+    then
+        echo "error: expected first 4 byte is 'dat' got $first_chars"
+        exit 1
+    fi
+
     rm_test_file
 }
 
@@ -153,6 +179,7 @@ function test_mv_file {
 
     # create the test file again
     mk_test_file
+    ORIGIN_FILE_MD5=`md5sum $TEST_TEXT_FILE| awk '{print $1}'`
 
     #rename the test file
     mv $TEST_TEXT_FILE $ALT_TEST_TEXT_FILE
@@ -168,6 +195,54 @@ function test_mv_file {
     if [ "$ALT_FILE_LENGTH" -ne "$ALT_TEXT_LENGTH" ]
     then
        echo "moved file length is not as expected expected: $ALT_TEXT_LENGTH  got: $ALT_FILE_LENGTH"
+       exit 1
+    fi
+
+    ALT_FILE_MD5=`md5sum $ALT_TEST_TEXT_FILE | awk '{print $1}'`
+    if [ "$ORIGIN_FILE_MD5" != "$ALT_FILE_MD5" ]
+    then
+       echo "moved file md5 is not as expected expected: $ORIGIN_FILE_MD5  got: $ALT_FILE_MD5"
+       exit 1
+    fi
+
+    # clean up
+    rm_test_file $ALT_TEST_TEXT_FILE
+}
+
+
+function test_mv_bigfile {
+    echo "Testing mv big file function ..."
+
+    # if the rename file exists, delete it
+    if [ -e $ALT_TEST_TEXT_FILE ]
+    then
+       rm $ALT_TEST_TEXT_FILE
+    fi
+
+    if [ -e $ALT_TEST_TEXT_FILE ]
+    then
+       echo "Could not delete file ${ALT_TEST_TEXT_FILE}, it still exists"
+       exit 1
+    fi
+
+    # create the test file again
+    BIG_FILE_PATH=/tmp/$BIG_FILE
+    head -c 5500M /dev/urandom > ${BIG_FILE_PATH}
+    ORIGIN_FILE_MD5=`md5sum $BIG_FILE_PATH| awk '{print $1}'`
+
+    #rename the test file
+    mv $BIG_FILE_PATH $ALT_TEST_TEXT_FILE
+    if [ ! -e $ALT_TEST_TEXT_FILE ]
+    then
+       echo "Could not move big file"
+       exit 1
+    fi
+
+    # Check the contents of the alt file
+    ALT_FILE_MD5=`md5sum $ALT_TEST_TEXT_FILE | awk '{print $1}'`
+    if [ "$ORIGIN_FILE_MD5" != "$ALT_FILE_MD5" ]
+    then
+       echo "moved file md5 is not as expected expected: $ORIGIN_FILE_MD5  got: $ALT_FILE_MD5"
        exit 1
     fi
 
@@ -470,14 +545,21 @@ function test_mtime_file {
 
 function test_file_size_in_stat_cache {
     echo "Testing file size in stat cache..."
-    python $CUR_DIR/stat_cache_test.py $TEST_BUCKET_MOUNT_POINT_1
+    python3 $CUR_DIR/test/stat_cache_test.py $TEST_BUCKET_MOUNT_POINT_1
+}
+
+function test_integration_test {
+   echo "Testing integration test..."
+   python3 $CUR_DIR/test/integration-test.py $TEST_BUCKET_MOUNT_POINT_1 $TEST_BUCKET_REGION $TEST_BUCKET_NAME
 }
 
 function run_all_tests {
+    test_integration_test
     test_append_file
-#    test_truncate_file
-    #test_truncate_empty_file
+    test_truncate_file
+    test_truncate_empty_file
     test_mv_file
+    test_mv_bigfile
     test_mv_directory
     test_redirects
     test_mkdir_rmdir
@@ -498,21 +580,28 @@ function run_all_tests {
     test_mtime_file
     test_file_size_in_stat_cache
 }
-
+pip install -U cos-python-sdk-v5
+if [ ! -f coscli-linux ]; then
+  wget "https://cosbrowser.cloud.tencent.com/software/coscli/coscli-linux"
+  chmod a+x coscli-linux
+fi
 # Mount the bucket
 if [ "$TEST_BUCKET_MOUNT_POINT_1" == "" ]; then
     echo "Mountpoint missing"
     exit 1
 fi
 cd $TEST_BUCKET_MOUNT_POINT_1
+rm -rf *
 
 if [ -e $TEST_TEXT_FILE ]
 then
   rm -f $TEST_TEXT_FILE
 fi
 
-rm -rf *
+SECONDS=0
 run_all_tests
+duration=$SECONDS
+echo "$(($duration / 60)) minutes and $(($duration % 60)) seconds elapsed."
 
 # Unmount the bucket
 cd $CUR_DIR

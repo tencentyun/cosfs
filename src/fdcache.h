@@ -178,6 +178,8 @@ class FdEntity
 
     ssize_t Read(char* bytes, off_t start, size_t size, bool force_load = false);
     ssize_t Write(const char* bytes, off_t start, size_t size);
+    int GetRefCount();
+    int Ftruncate(ssize_t size);
 };
 typedef std::map<std::string, class FdEntity*> fdent_map_t;   // key=path, value=FdEntity*
 
@@ -194,6 +196,7 @@ class FdManager
     static size_t          free_disk_space; // limit free disk space
 
     fdent_map_t            fent;
+    static std::string     tmp_dir;
 
   private:
     static fsblkcnt_t GetFreeDiskSpace(const char* path);
@@ -225,6 +228,8 @@ class FdManager
     void Rename(const std::string &from, const std::string &to);
     bool Close(FdEntity* ent);
     bool ChangeEntityToTempPath(FdEntity* ent, const char* path);
+    static bool SetTmpDir(const char* dir);
+    static FILE* MakeTempFile();
 };
 
 #endif // FD_CACHE_H_

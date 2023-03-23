@@ -309,7 +309,7 @@ mimes_t          S3fsCurl::mimeTypes;
 int              S3fsCurl::max_parallel_cnt    = 10;              // default
 off_t            S3fsCurl::multipart_size      = MULTIPART_SIZE; // default
 bool             S3fsCurl::is_sigv4            = true;           // default
-const string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
+string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
 
 //-------------------------------------------------------------------
 // Class methods for S3fsCurl
@@ -1410,6 +1410,12 @@ bool S3fsCurl::SetRAMCredentials(const char* response)
   S3fsCurl::COSAccessToken       = keyval[string(RAMCRED_ACCESSTOKEN)];
   S3fsCurl::COSAccessTokenExpire = cvtCAMExpireStringToTime(keyval[string(RAMCRED_EXPIRATION)].c_str());
 
+  return true;
+}
+
+bool S3fsCurl::SetUserAgentSuffix(const std::string& suffix) {
+  skUserAgent = "tencentyun-cosfs-v5-";
+  skUserAgent +=  suffix + "-" + VERSION;
   return true;
 }
 
