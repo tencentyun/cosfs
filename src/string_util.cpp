@@ -243,6 +243,22 @@ bool takeout_str_dquart(string& str)
   return true;
 }
 
+static std::string s3fs_hex(const unsigned char* input, size_t length, const char *hexAlphabet)
+{
+    std::string hex;
+    for(size_t pos = 0; pos < length; ++pos){
+        hex += hexAlphabet[input[pos] / 16];
+        hex += hexAlphabet[input[pos] % 16];
+    }
+    return hex;
+}
+
+std::string s3fs_hex_lower(const unsigned char* input, size_t length)
+{
+    return s3fs_hex(input, length, "0123456789abcdef");
+}
+
+
 //
 // ex. target="http://......?keyword=value&..."
 //

@@ -410,6 +410,11 @@ bool PageList::FindUnloadedPage(off_t start, off_t& resstart, size_t& ressize) c
 
 size_t PageList::GetTotalUnloadedPageSize(off_t start, size_t size) const
 {
+  if(0 == size){
+    if(start < Size()){
+      size = Size() - start;
+    }
+  }
   size_t restsize = 0;
   off_t  next     = static_cast<off_t>(start + size);
   for(fdpage_list_t::const_iterator iter = pages.begin(); iter != pages.end(); ++iter){
@@ -620,7 +625,7 @@ int FdEntity::FillFile(int fd, unsigned char byte, size_t size, off_t start)
 FdEntity::FdEntity(const char* tpath, const char* cpath)
         : is_lock_init(false), refcnt(0), path(SAFESTRPTR(tpath)), cachepath(SAFESTRPTR(cpath)),
           fd(-1), pfile(NULL), is_modify(false), size_orgmeta(0), upload_id(""), mp_start(0), mp_size(0),
-          is_meta_pending(false)
+          is_meta_pending(false), is_no_disk_space_flushed(false)
 {
   try{
     pthread_mutexattr_t attr;
@@ -1069,7 +1074,12 @@ int FdEntity::Load(off_t start, size_t size)
       }else{
         // single request
         S3fsCurl s3fscurl;
-        result = s3fscurl.GetObjectRequest(path.c_str(), fd, (*iter)->offset, need_load_size);
+        if(0 < need_load_size){
+          S3fsCurl s3fscurl;
+          result = s3fscurl.GetObjectRequest(path.c_str(), fd, (*iter)->offset, need_load_size);
+        }else{
+          result = 0;
+        }
       }
       if(0 != result){
         break;
@@ -1398,6 +1408,10 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
         backup = S3fsCurl::SetReadwriteTimeout(120);
       }
       result = S3fsCurl::ParallelMultipartUploadRequest(tpath ? tpath : path.c_str(), orgmeta, fd);
+      if (result != 0) {
+        S3FS_PRN_ERR("failed to flush object(errno=%d)", result);
+        return result;
+      }
       if(0 != backup){
         S3fsCurl::SetReadwriteTimeout(backup);
       }
@@ -1414,8 +1428,19 @@ int FdEntity::RowFlush(const char* tpath, bool force_sync)
 
   }else{
     S3FS_PRN_INFO3("[path=%s][fd=%d] already being upload", path.c_str(), fd);
+    if (is_no_disk_space_flushed) {
+        // 磁盘空间不够，进入的顺序写模式只能往cos上传一次
+        S3FS_PRN_ERR("not enough disk space for writting file, allocate more space[path=%s].", path.c_str());
+        return -EIO;
+    }
+    is_no_disk_space_flushed = true;
     // upload rest data
     if(0 < mp_size){
+      // 磁盘空间不够，进入的顺序写模式要求为新写入的文件，或者长度比原有的更长
+      if (mp_start + mp_size < pagelist.Size()) {
+          S3FS_PRN_ERR("not enough disk space for writting file[path=%s].", path.c_str());
+          return -EIO;
+      }
       if(0 != (result = NoCacheMultipartPost(fd, mp_start, mp_size))){
         S3FS_PRN_ERR("failed to multipart post(start=%zd, size=%zu) for file(%d).", mp_start, mp_size, fd);
         return result;
@@ -1548,6 +1573,7 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
     }
   }else{
     // alreay start miltipart uploading
+
   }
 
   // Writing
@@ -1564,6 +1590,11 @@ ssize_t FdEntity::Write(const char* bytes, off_t start, size_t size)
 
   // check multipart uploading
   if(0 < upload_id.length()){
+    // sequence write mode check offset
+    if (start != mp_start) {
+        S3FS_PRN_ERR("failed to write file [path=%s], make sure you have enough disk space.");
+        return -EIO;
+    }
     mp_size += static_cast<size_t>(wsize);
     if(static_cast<size_t>(S3fsCurl::GetMultipartSize()) <= mp_size){
       // over one multipart size
@@ -2055,6 +2086,18 @@ void FdManager::Rename(const std::string &from, const std::string &to)
 {
   AutoLock auto_lock(&FdManager::fd_manager_lock);
   fdent_map_t::iterator iter = fent.find(from);
+  if(fent.end() == iter && !FdManager::IsCacheDir()){
+    // If the cache directory is not specified, s3fs opens a temporary file
+    // when the file is opened.
+    // Then if it could not find a entity in map for the file, s3fs should
+    // search a entity in all which opened the temporary file.
+    //
+    for(iter = fent.begin(); iter != fent.end(); ++iter){
+      if((*iter).second && (*iter).second->IsOpen() && 0 == strcmp((*iter).second->GetPath(), from.c_str())){
+        break;              // found opened fd in mapping
+      }
+    }
+  }
   if(fent.end() != iter){
     // found
     S3FS_PRN_DBG("[from=%s][to=%s]", from.c_str(), to.c_str());

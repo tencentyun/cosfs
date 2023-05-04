@@ -127,6 +127,7 @@ class FdEntity
     off_t           mp_start;       // start position for no cached multipart(write method only)
     size_t          mp_size;        // size for no cached multipart(write method only)
     bool            is_meta_pending;
+    bool            is_no_disk_space_flushed;
   private:
     static size_t max_prefetch_bytes;
   private:
@@ -175,6 +176,7 @@ class FdEntity
 
     int RowFlush(const char* tpath, bool force_sync = false);
     int Flush(bool force_sync = false) { return RowFlush(NULL, force_sync); }
+    bool isUploading() { return 0 < upload_id.length(); }
 
     ssize_t Read(char* bytes, off_t start, size_t size, bool force_load = false);
     ssize_t Write(const char* bytes, off_t start, size_t size);

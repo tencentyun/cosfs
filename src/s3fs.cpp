@@ -1196,7 +1196,6 @@ static int rename_object(const char* from, const char* to)
   meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + s3_realpath.c_str());
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
-
   if(0 != (result = put_headers(to, meta, true))){
     return result;
   }
@@ -1274,12 +1273,12 @@ static int rename_large_object(const char* from, const char* to)
   if(0 != (result = get_object_attribute(from, &buf, &meta, false))){
     return result;
   }
-
   S3fsCurl s3fscurl(true);
   if(0 != (result = s3fscurl.MultipartRenameRequest(from, to, meta, buf.st_size))){
     return result;
   }
   s3fscurl.DestroyCurlHandle();
+  FdManager::get()->Rename(from, to);
   StatCache::getStatCacheData()->DelStat(to);
 
   return s3fs_unlink(from);
@@ -1457,7 +1456,16 @@ static int s3fs_rename(const char* from, const char* to)
   if(0 != (result = get_object_attribute(from, &buf, NULL))){
     return result;
   }
-
+  FdEntity* ent;
+  if(NULL != (ent = FdManager::get()->ExistOpen(from, -1, true))) {
+    if(0 != (result = ent->Flush(true))) {
+      FdManager::get()->Close(ent);
+      S3FS_PRN_ERR("could not upload file %s, result=%d", from, result);
+      return result;
+    }
+    FdManager::get()->Close(ent);
+    StatCache::getStatCacheData()->DelStat(from);
+  }
   // files larger than 5GB must be modified via the multipart interface
   if(S_ISDIR(buf.st_mode)){
     result = rename_directory(from, to);
