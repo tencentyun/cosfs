@@ -38,6 +38,7 @@ class CacheFileStat
   public:
     static bool DeleteCacheFileStat(const char* path);
     static bool CheckCacheFileStatTopDir(void);
+    static bool RenameCacheFileStat(const char* oldpath, const char* newpath);
 
     explicit CacheFileStat(const char* tpath = NULL);
     ~CacheFileStat();
@@ -98,7 +99,6 @@ class PageList
     bool FindUnloadedPage(off_t start, off_t& resstart, size_t& ressize) const;
     size_t GetTotalUnloadedPageSize(off_t start = 0, size_t size = 0) const;    // size=0 is checking to end of list
     int GetUnloadedPages(fdpage_list_t& unloaded_list, off_t start = 0, size_t size = 0) const;  // size=0 is checking to end of list
-
     bool Serialize(CacheFileStat& file, bool is_output);
     void Dump(void);
 };
@@ -127,6 +127,7 @@ class FdEntity
     off_t           mp_start;       // start position for no cached multipart(write method only)
     size_t          mp_size;        // size for no cached multipart(write method only)
     bool            is_meta_pending;
+    bool            is_no_disk_space_flushed;
   private:
     static size_t max_prefetch_bytes;
   private:
@@ -152,7 +153,7 @@ class FdEntity
     int Dup(void);
 
     const char* GetPath(void) const { return path.c_str(); }
-    void SetPath(const std::string &newpath) { path = newpath; }
+    bool RenamePath(const std::string& newpath, std::string& fentmapkey);
     int GetFd(void) const { return fd; }
 
     bool GetStats(struct stat& st);
@@ -225,7 +226,7 @@ class FdManager
     FdEntity* GetFdEntity(const char* path, int existfd = -1);
     FdEntity* Open(const char* path, headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1, bool force_tmpfile = false, bool is_create = true);
     FdEntity* ExistOpen(const char* path, int existfd = -1, bool ignore_existfd = false);
-    void Rename(const std::string &from, const std::string &to);
+    bool Rename(const std::string &from, const std::string &to);
     bool Close(FdEntity* ent);
     bool ChangeEntityToTempPath(FdEntity* ent, const char* path);
     static bool SetTmpDir(const char* dir);

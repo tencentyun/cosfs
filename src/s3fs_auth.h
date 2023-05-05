@@ -32,6 +32,7 @@
 std::string s3fs_get_content_md5(int fd);
 std::string s3fs_md5sum(int fd, off_t start, ssize_t size);
 std::string s3fs_sha256sum(int fd, off_t start, ssize_t size);
+unsigned char* s3fs_md5_fd(int fd, off_t start, off_t size);
 
 //
 // in xxxxxx_auth.cpp

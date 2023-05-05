@@ -2974,8 +2974,16 @@ int S3fsCurl::UploadMultipartPostSetup(const char* tpath, int part_num, string& 
 
   string strMD5;
   if(S3fsCurl::is_content_md5){
-	  strMD5 = md5base64;
-	  requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-MD5", strMD5.c_str());
+     unsigned char *md5raw = s3fs_md5_fd(partdata.fd, partdata.startpos, partdata.size);
+      if(md5raw == NULL){
+          S3FS_PRN_ERR("Could not make md5 for file(part %d)", part_num);
+          return -EIO;
+      }
+      partdata.etag = s3fs_hex_lower(md5raw, get_md5_digest_length());
+      char* md5base64p = s3fs_base64(md5raw, get_md5_digest_length());
+      requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-MD5", md5base64p);
+      delete[] md5base64p;
+      delete[] md5raw;
   }
 
   if(!S3fsCurl::IsPublicBucket()){
