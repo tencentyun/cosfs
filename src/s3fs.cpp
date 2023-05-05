@@ -4939,6 +4939,10 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       S3fsCurl::SetContentMd5(true);
       return 0;
     }
+    if(0 == strcmp(arg, "disable_content_md5")){
+      S3fsCurl::SetContentMd5(false);
+      return 0;
+    }
     if(0 == STR2NCMP(arg, "url=")){
       host = strchr(arg, '=') + sizeof(char);
       // strip the trailing '/', if any, off the end of the host

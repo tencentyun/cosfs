@@ -294,7 +294,7 @@ storage_class_t  S3fsCurl::storage_class       = STANDARD;
 sseckeylist_t    S3fsCurl::sseckeys;
 std::string      S3fsCurl::ssekmsid            = "";
 sse_type_t       S3fsCurl::ssetype             = SSE_DISABLE;
-bool             S3fsCurl::is_content_md5      = false;
+bool             S3fsCurl::is_content_md5      = true;
 bool             S3fsCurl::is_verbose          = false;
 string           S3fsCurl::COSAccessKeyId;
 string           S3fsCurl::COSSecretAccessKey;
