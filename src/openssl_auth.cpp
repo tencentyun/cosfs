@@ -271,6 +271,45 @@ unsigned char* s3fs_md5hexsum(int fd, off_t start, ssize_t size)
   return result;
 }
 
+unsigned char* s3fs_md5_fd(int fd, off_t start, off_t size)
+{
+    MD5_CTX md5ctx;
+    off_t   bytes;
+    unsigned char* result;
+
+    if(-1 == size){
+        struct stat st;
+        if(-1 == fstat(fd, &st)){
+            return NULL;
+        }
+        size = st.st_size;
+    }
+
+    MD5_Init(&md5ctx);
+
+    for(off_t total = 0; total < size; total += bytes){
+        const off_t len = 512;
+        char buf[len];
+        bytes = len < (size - total) ? len : (size - total);
+        bytes = pread(fd, buf, bytes, start + total);
+        if(0 == bytes){
+            // end of file
+            break;
+        }else if(-1 == bytes){
+            // error
+            S3FS_PRN_ERR("file read error(%d)", errno);
+            return NULL;
+        }
+        MD5_Update(&md5ctx, buf, bytes);
+    }
+
+    result = new unsigned char[get_md5_digest_length()];
+    MD5_Final(result, &md5ctx);
+
+    return result;
+}
+
+
 //-------------------------------------------------------------------
 // Utility Function for SHA256
 //-------------------------------------------------------------------

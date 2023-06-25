@@ -1177,6 +1177,7 @@ static int rename_object(const char* from, const char* to)
   int result;
   string s3_realpath;
   headers_t meta;
+  struct stat buf;
 
   S3FS_PRN_INFO1("[from=%s][to=%s]", from , to);
 
@@ -1188,7 +1189,7 @@ static int rename_object(const char* from, const char* to)
     // not permmit removing "from" object parent dir.
     return result;
   }
-  if(0 != (result = get_object_attribute(from, NULL, &meta))){
+  if(0 != (result = get_object_attribute(from, &buf, &meta))){
     return result;
   }
   s3_realpath = get_realpath(from);
@@ -1196,13 +1197,44 @@ static int rename_object(const char* from, const char* to)
   meta["x-cos-copy-source"]        = urlEncode(service_path + bucket + "-" + appid + s3_realpath.c_str());
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
+  FdEntity*    ent = NULL;
+  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true))){
+    // no others open it and specify use cache dir
+    if(FdManager::IsCacheDir()){
+      // create cache file if be needed
+      //
+      // [NOTE]
+      // Do not specify "S3FS_OMIT_TS" for mctime parameter.
+      // This is because if the cache file does not exist, the pagelist for it
+      // will be recreated, but the entire file area indicated by this pagelist
+      // will be in the "modified" state.
+      // This does not affect the rename process, but the cache information in
+      // the "modified" state remains, making it impossible to read the file correctly.
+      //
+      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true))){
+        S3FS_PRN_ERR("could not open file for rename(%s): errno=%d", from, errno);
+        return -EIO;
+      }
+    }
+  }
 
   if(0 != (result = put_headers(to, meta, true))){
+    if (NULL != ent) {
+      FdManager::get()->Close(ent);
+    }
     return result;
   }
 
-  FdManager::get()->Rename(from, to);
-
+  if(!FdManager::get()->Rename(from, to)) {
+    S3FS_PRN_ERR("could not rename file from %s to %s", from, to);
+    if (NULL != ent) {
+      FdManager::get()->Close(ent);
+    }
+    return -EIO;
+  }
+  if (NULL != ent) {
+    FdManager::get()->Close(ent);
+  }
   result = s3fs_unlink(from);
   StatCache::getStatCacheData()->DelStat(to);
 
@@ -1274,12 +1306,44 @@ static int rename_large_object(const char* from, const char* to)
   if(0 != (result = get_object_attribute(from, &buf, &meta, false))){
     return result;
   }
-
+  FdEntity*    ent = NULL;
+  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true))){
+    // no others open it and specify use cache dir
+    if(FdManager::IsCacheDir()){
+      // create cache file if be needed
+      //
+      // [NOTE]
+      // Do not specify "S3FS_OMIT_TS" for mctime parameter.
+      // This is because if the cache file does not exist, the pagelist for it
+      // will be recreated, but the entire file area indicated by this pagelist
+      // will be in the "modified" state.
+      // This does not affect the rename process, but the cache information in
+      // the "modified" state remains, making it impossible to read the file correctly.
+      //
+      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true))){
+        S3FS_PRN_ERR("could not open file for rename(%s): errno=%d", from, errno);
+        return -EIO;
+      }
+    }
+  }
   S3fsCurl s3fscurl(true);
   if(0 != (result = s3fscurl.MultipartRenameRequest(from, to, meta, buf.st_size))){
+    if (NULL != ent) {
+      FdManager::get()->Close(ent);
+    }
     return result;
   }
   s3fscurl.DestroyCurlHandle();
+  if(!FdManager::get()->Rename(from, to)) {
+    S3FS_PRN_ERR("could not rename file from %s to %s", from, to);
+    if (NULL != ent) {
+      FdManager::get()->Close(ent);
+    }
+    return -EIO;
+  }
+  if (NULL != ent) {
+    FdManager::get()->Close(ent);
+  }
   StatCache::getStatCacheData()->DelStat(to);
 
   return s3fs_unlink(from);
@@ -1457,7 +1521,16 @@ static int s3fs_rename(const char* from, const char* to)
   if(0 != (result = get_object_attribute(from, &buf, NULL))){
     return result;
   }
-
+  FdEntity* ent;
+  if(NULL != (ent = FdManager::get()->ExistOpen(from, -1, true))) {
+    if(0 != (result = ent->Flush(true))) {
+      FdManager::get()->Close(ent);
+      S3FS_PRN_ERR("could not upload file %s, result=%d", from, result);
+      return result;
+    }
+    FdManager::get()->Close(ent);
+    StatCache::getStatCacheData()->DelStat(from);
+  }
   // files larger than 5GB must be modified via the multipart interface
   if(S_ISDIR(buf.st_mode)){
     result = rename_directory(from, to);
@@ -4864,6 +4937,10 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     }
     if(0 == strcmp(arg, "enable_content_md5")){
       S3fsCurl::SetContentMd5(true);
+      return 0;
+    }
+    if(0 == strcmp(arg, "disable_content_md5")){
+      S3fsCurl::SetContentMd5(false);
       return 0;
     }
     if(0 == STR2NCMP(arg, "url=")){
