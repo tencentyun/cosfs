@@ -617,51 +617,75 @@ string S3fsCurl::LookupMimeType(string name)
 
 bool S3fsCurl::LocateBundle(void)
 {
-  // See if environment variable CURL_CA_BUNDLE is set
-  // if so, check it, if it is a good path, then set the
-  // curl_ca_bundle variable to it
-  char *CURL_CA_BUNDLE;
-
-  if(0 == S3fsCurl::curl_ca_bundle.size()){
-    CURL_CA_BUNDLE = getenv("CURL_CA_BUNDLE");
-    if(CURL_CA_BUNDLE != NULL)  {
-      // check for existence and readability of the file
-      ifstream BF(CURL_CA_BUNDLE);
-      if(!BF.good()){
-        S3FS_PRN_ERR("%s: file specified by CURL_CA_BUNDLE environment variable is not readable", program_name.c_str());
-        return false;
-      }
-      BF.close();
-      S3fsCurl::curl_ca_bundle.assign(CURL_CA_BUNDLE);
-      return true;
+    // See if environment variable CURL_CA_BUNDLE is set
+    // if so, check it, if it is a good path, then set the
+    // curl_ca_bundle variable to it
+    if(S3fsCurl::curl_ca_bundle.empty()){
+        char* CURL_CA_BUNDLE = getenv("CURL_CA_BUNDLE");
+        if(CURL_CA_BUNDLE != NULL)  {
+            // check for existence and readability of the file
+            std::ifstream BF(CURL_CA_BUNDLE);
+            if(!BF.good()){
+                S3FS_PRN_ERR("%s: file specified by CURL_CA_BUNDLE environment variable is not readable", program_name.c_str());
+                return false;
+            }
+            BF.close();
+            S3fsCurl::curl_ca_bundle = CURL_CA_BUNDLE;
+            return true;
+        }
+    }else{
+        // Already set ca bundle variable
+        return true;
     }
-  }
 
-  // not set via environment variable, look in likely locations
+    // not set via environment variable, look in likely locations
 
-  ///////////////////////////////////////////
-  // from curl's (7.21.2) acinclude.m4 file
-  ///////////////////////////////////////////
-  // dnl CURL_CHECK_CA_BUNDLE
-  // dnl -------------------------------------------------
-  // dnl Check if a default ca-bundle should be used
-  // dnl
-  // dnl regarding the paths this will scan:
-  // dnl /etc/ssl/certs/ca-certificates.crt Debian systems
-  // dnl /etc/pki/tls/certs/ca-bundle.crt Redhat and Mandriva
-  // dnl /usr/share/ssl/certs/ca-bundle.crt old(er) Redhat
-  // dnl /usr/local/share/certs/ca-root.crt FreeBSD
-  // dnl /etc/ssl/cert.pem OpenBSD
-  // dnl /etc/ssl/certs/ (ca path) SUSE
-  ifstream BF("/etc/pki/tls/certs/ca-bundle.crt");
-  if(BF.good()){
-     BF.close();
-     S3fsCurl::curl_ca_bundle.assign("/etc/pki/tls/certs/ca-bundle.crt");
-  }else{
-    S3FS_PRN_ERR("%s: /etc/pki/tls/certs/ca-bundle.crt is not readable", program_name.c_str());
-    return false;
-  }
-  return true;
+    ///////////////////////////////////////////
+    // following comment from curl's (7.21.2) acinclude.m4 file
+    ///////////////////////////////////////////
+    // dnl CURL_CHECK_CA_BUNDLE
+    // dnl -------------------------------------------------
+    // dnl Check if a default ca-bundle should be used
+    // dnl
+    // dnl regarding the paths this will scan:
+    // dnl /etc/ssl/certs/ca-certificates.crt Debian systems
+    // dnl /etc/pki/tls/certs/ca-bundle.crt Redhat and Mandriva
+    // dnl /usr/share/ssl/certs/ca-bundle.crt old(er) Redhat
+    // dnl /usr/local/share/certs/ca-root.crt FreeBSD
+    // dnl /etc/ssl/cert.pem OpenBSD
+    // dnl /etc/ssl/certs/ (ca path) SUSE
+    ///////////////////////////////////////////
+    // Within CURL the above path should have been checked
+    // according to the OS. Thus, although we do not need
+    // to check files here, we will only examine some files.
+    //
+    std::ifstream BF("/etc/pki/tls/certs/ca-bundle.crt");
+    if(BF.good()){
+        BF.close();
+        S3fsCurl::curl_ca_bundle = "/etc/pki/tls/certs/ca-bundle.crt";
+    }else{
+        BF.open("/etc/ssl/certs/ca-certificates.crt");
+        if(BF.good()){
+            BF.close();
+            S3fsCurl::curl_ca_bundle = "/etc/ssl/certs/ca-certificates.crt";
+        }else{
+            BF.open("/usr/share/ssl/certs/ca-bundle.crt");
+            if(BF.good()){
+                BF.close();
+                S3fsCurl::curl_ca_bundle = "/usr/share/ssl/certs/ca-bundle.crt";
+            }else{
+                BF.open("/usr/local/share/certs/ca-root.crt");
+                if(BF.good()){
+                    BF.close();
+                    S3fsCurl::curl_ca_bundle = "/usr/share/ssl/certs/ca-bundle.crt";
+                }else{
+                    S3FS_PRN_ERR("%s: /.../ca-bundle.crt is not readable", program_name.c_str());
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
 }
 
 size_t S3fsCurl::WriteMemoryCallback(void* ptr, size_t blockSize, size_t numBlocks, void* data)
@@ -1935,13 +1959,12 @@ int S3fsCurl::RequestPerform(void)
         if(0 == S3fsCurl::curl_ca_bundle.size()){
           if(!S3fsCurl::LocateBundle()){
             S3FS_PRN_CRIT("could not get CURL_CA_BUNDLE.");
-            exit(EXIT_FAILURE);
+            return -EIO;
           }
           break; // retry with CAINFO
         }
         S3FS_PRN_CRIT("curlCode: %d  msg: %s", curlCode, curl_easy_strerror(curlCode));
-        exit(EXIT_FAILURE);
-        break;
+        return -EIO;
 
 #ifdef CURLE_PEER_FAILED_VERIFICATION
       case CURLE_PEER_FAILED_VERIFICATION:
@@ -1957,8 +1980,7 @@ int S3fsCurl::RequestPerform(void)
         }else{
           S3FS_PRN_INFO("my_curl_easy_perform: curlCode: %d -- %s", curlCode, curl_easy_strerror(curlCode));
         }
-        exit(EXIT_FAILURE);
-        break;
+        return -EIO;
 #endif
 
       // This should be invalid since curl option HTTP FAILONERROR is now off
@@ -1982,8 +2004,7 @@ int S3fsCurl::RequestPerform(void)
       // Unknown CURL return code
       default:
         S3FS_PRN_CRIT("###curlCode: %d  msg: %s", curlCode, curl_easy_strerror(curlCode));
-        exit(EXIT_FAILURE);
-        break;
+        return -EIO;
     }
     S3FS_PRN_INFO("### retrying...");
 
