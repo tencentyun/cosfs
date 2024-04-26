@@ -4625,6 +4625,10 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
       S3fsCurl::SetRetries(static_cast<int>(s3fs_strtoofft(strchr(arg, '=') + sizeof(char))));
       return 0;
     }
+    if(0 == STR2NCMP(arg, "tmpdir=")){
+      FdManager::SetTmpDir(strchr(arg, '=') + sizeof(char));
+      return 0;
+    }
     if(0 == STR2NCMP(arg, "use_cache=")){
       FdManager::SetCacheDir(strchr(arg, '=') + sizeof(char));
       return 0;
@@ -4659,10 +4663,6 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     if(0 == STR2NCMP(arg, "user_agent_suffix=")){
       std::string user_agent_suffix = string(strchr(arg, '=') + sizeof(char));
       S3fsCurl::SetUserAgentSuffix(user_agent_suffix);
-      return 0;
-    }
-    if(0 == STR2NCMP(arg, "tmpdir=")){
-      FdManager::SetTmpDir(strchr(arg, '=') + sizeof(char));
       return 0;
     }
     // old format for storage_class
@@ -5210,6 +5210,14 @@ int main(int argc, char* argv[])
     }
     // More error checking on the access key pair can be done
     // like checking for appropriate lengths and characters
+  }
+
+  // check tmp dir permission
+  if(!FdManager::CheckTmpDirExist()){
+      S3FS_PRN_EXIT("temporary directory doesn't exists.");
+      S3fsCurl::DestroyS3fsCurl();
+      s3fs_destroy_global_ssl();
+      exit(EXIT_FAILURE);
   }
 
   // check cache dir permission

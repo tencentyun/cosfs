@@ -201,6 +201,7 @@ class FdManager
 
   private:
     static fsblkcnt_t GetFreeDiskSpace(const char* path);
+    static bool IsDir(const std::string* dir);
 
   public:
     FdManager();
@@ -230,6 +231,7 @@ class FdManager
     bool Close(FdEntity* ent);
     bool ChangeEntityToTempPath(FdEntity* ent, const char* path);
     static bool SetTmpDir(const char* dir);
+    static bool CheckTmpDirExist();
     static FILE* MakeTempFile();
 };
 

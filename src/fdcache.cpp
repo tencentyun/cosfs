@@ -54,15 +54,6 @@ using namespace std;
 //------------------------------------------------
 #define MAX_MULTIPART_CNT   10000                   // OSS multipart max count
 
-//
-// For cache directory top path
-//
-#if defined(P_tmpdir)
-#define TMPFILE_DIR_0PATH   P_tmpdir
-#else
-#define TMPFILE_DIR_0PATH   "/tmp"
-#endif
-
 size_t FdEntity::max_prefetch_bytes = 100 * 1024 * 1024;
 
 //------------------------------------------------
@@ -1229,8 +1220,8 @@ int FdEntity::NoCacheLoadAndPost(off_t start, size_t size)
   // open temporary file
   FILE* ptmpfp;
   int   tmpfd;
-  if(NULL == (ptmpfp = tmpfile()) || -1 ==(tmpfd = fileno(ptmpfp))){
-    S3FS_PRN_ERR("failed to open tmp file. err(%d)", errno);
+  if(NULL == (ptmpfp = FdManager::MakeTempFile()) || -1 ==(tmpfd = fileno(ptmpfp))){
+    S3FS_PRN_ERR("failed to open temporary file by errno(%d)", errno);
     if(ptmpfp){
       fclose(ptmpfp);
     }
@@ -1836,7 +1827,7 @@ pthread_mutex_t FdManager::fd_manager_lock;
 bool            FdManager::is_lock_init(false);
 string          FdManager::cache_dir("");
 size_t          FdManager::free_disk_space = 0;
-std::string     FdManager::tmp_dir = "";
+std::string     FdManager::tmp_dir = "/tmp";
 
 //------------------------------------------------
 // FdManager class methods
@@ -1969,7 +1960,7 @@ fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path)
   if(0 < FdManager::cache_dir.size()){
     ctoppath = FdManager::cache_dir + "/";
   }else{
-    ctoppath = TMPFILE_DIR_0PATH "/";
+    ctoppath = tmp_dir + "/";
   }
   if(path && '\0' != *path){
     ctoppath += path;
@@ -1983,8 +1974,31 @@ fsblkcnt_t FdManager::GetFreeDiskSpace(const char* path)
   return (vfsbuf.f_bavail * vfsbuf.f_bsize);
 }
 
+bool FdManager::IsDir(const std::string* dir)
+{
+    // check the directory
+    struct stat st;
+    if(0 != stat(dir->c_str(), &st)){
+        S3FS_PRN_ERR("could not stat() directory %s by errno(%d).", dir->c_str(), errno);
+        return false;
+    }
+    if(!S_ISDIR(st.st_mode)){
+        S3FS_PRN_ERR("the directory %s is not a directory.", dir->c_str());
+        return false;
+    }
+    return true;
+}
+
+bool FdManager::CheckTmpDirExist()
+{
+    if(FdManager::tmp_dir.empty()){
+        return true;
+    }
+    return IsDir(&tmp_dir);
+}
+
 FILE* FdManager::MakeTempFile() {
-    if (tmp_dir.empty()) {
+    if (tmp_dir.empty() || tmp_dir == "/tmp") {
       return tmpfile();
     }
     int fd;
@@ -2237,7 +2251,7 @@ bool FdManager::SetTmpDir(const char *dir)
         tmp_dir = "/tmp";
     }else{
         tmp_dir = dir;
-    }
+    } 
     return true;
 }
 
