@@ -49,6 +49,7 @@
 #include "s3fs.h"
 #include "s3fs_util.h"
 #include "s3fs_auth.h"
+#include "fdcache.h"
 
 using namespace std;
 
@@ -69,13 +70,13 @@ static bool make_md5_from_string(const char* pstr, string& md5)
     return false;
   }
   FILE* fp;
-  if(NULL == (fp = tmpfile())){
-    S3FS_PRN_ERR("Could not make tmpfile.");
+  if(NULL == (fp = FdManager::MakeTempFile())){
+    S3FS_PRN_ERR("failed to open temporary file by errno(%d)", errno);
     return false;
   }
   size_t length = strlen(pstr);
   if(length != fwrite(pstr, sizeof(char), length, fp)){
-    S3FS_PRN_ERR("Failed to write tmpfile.");
+    S3FS_PRN_ERR("failed to write temporary file by errno(%d)", errno);
     fclose(fp);
     return false;
   }
