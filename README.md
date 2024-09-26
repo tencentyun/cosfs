@@ -134,9 +134,9 @@ fusermount -u /tmp/cosfs # non-root user
 
 -opasswd_file 含义和之前一致，文件名和路径可以任意指定
 但是文件内容需要以以下格式提供
-COSAccessKeyId=AKID5yc1B6BEwRikX8gaQ1NTIrAE2ay92mFS
-COSSecretKey=80e1A3h5FBtNbcPxGPL3ZqthFYdU6TbY
-COSAccessToken=109dbb14ca0c30ef4b7e2fc9612f26788cadbfac3
+COSAccessKeyId=AK**********************
+COSSecretKey=**************************
+COSAccessToken=***************************
 COSAccessTokenExpire=2017-08-29T20:30:00
 
 其中COSAccessTokenExpire 代表临时token过期时间，为GMT时间，格式需要和例子中一致
