@@ -2027,7 +2027,7 @@ int S3fsCurl::RequestPerform(void)
 // @param date e.g., get_date_rfc850()
 // @param resource e.g., "/pub"
 //
-string S3fsCurl::CalcSignature(string method, string strMD5, string content_type, string date, string resource)
+string S3fsCurl::CalcSignature(string method, string strMD5, string content_type, string date, string resource, string query)
 {
   string Signature;
 
@@ -2055,9 +2055,11 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   s3fs_HMAC(key, key_len, kdata, q_key_time.size(), &sign_key_raw, &sign_key_len);
   std::string sign_key = s3fs_hex(sign_key_raw, sign_key_len);
 
+  map<string, string> requestParams = get_params_from_query_string(query);
   string FormatString;
   FormatString += lower(method) + "\n";
-  FormatString += resource + "\n\n"; // no params
+  FormatString += resource + "\n";
+  FormatString += get_canonical_params(requestParams); // \n has been append
   FormatString += get_canonical_headers(requestHeaders); // \n has been append
 
   const unsigned char* sdata = reinterpret_cast<const unsigned char*>(FormatString.data());
@@ -2079,7 +2081,7 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   Signature += "q-sign-algorithm=sha1&";
   Signature += string("q-ak=") + S3fsCurl::COSAccessKeyId + "&";
   Signature += string("q-sign-time=") + q_key_time + "&";
-  Signature += string("q-key-time=") + q_key_time + "&q-url-param-list=&";
+  Signature += string("q-key-time=") + q_key_time + "&q-url-param-list=" + get_canonical_param_keys(requestParams) + "&";
   Signature += string("q-header-list=") + get_canonical_header_keys(requestHeaders) + "&";
   Signature += string("q-signature=") + sign_data_hex;
 
@@ -2145,18 +2147,20 @@ int S3fsCurl::DeleteRequest(const char* tpath)
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", NULL);
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("DELETE", "", "", date, resource);
+	  string Signature = CalcSignature("DELETE", "", "", date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2258,10 +2262,11 @@ bool S3fsCurl::PreHeadRequest(const char* tpath, const char* bpath, const char* 
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
   // libcurl 7.17 does deep copy of url, deep copy "stable" url
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   base_path       = SAFESTRPTR(bpath);
   saved_path      = SAFESTRPTR(savedpath);
@@ -2272,12 +2277,13 @@ bool S3fsCurl::PreHeadRequest(const char* tpath, const char* bpath, const char* 
   b_ssekey_pos = ssekey_pos;
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", NULL);
   requestHeaders = curl_slist_sort_insert(requestHeaders, "User-Agent", skUserAgent.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("HEAD", "", "", date, resource);
+	  string Signature = CalcSignature("HEAD", "", "", date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2342,9 +2348,10 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
@@ -2373,11 +2380,12 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
 
   string date        = get_date_rfc850();
   string ContentType = S3fsCurl::LookupMimeType(string(tpath));
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("PUT", "", ContentType, date, resource);
+	  string Signature = CalcSignature("PUT", "", ContentType, date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2434,9 +2442,10 @@ int S3fsCurl::PutRequest(const char* tpath, headers_t& meta, int fd)
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
@@ -2468,11 +2477,12 @@ int S3fsCurl::PutRequest(const char* tpath, headers_t& meta, int fd)
 
   string date        = get_date_rfc850();
   string ContentType = S3fsCurl::LookupMimeType(string(tpath));
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("PUT", strMD5, ContentType, date, resource);
+	  string Signature = CalcSignature("PUT", strMD5, ContentType, date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization",Signature.c_str());
   }
 
@@ -2516,9 +2526,10 @@ int S3fsCurl::PreGetObjectRequest(const char* tpath, int fd, off_t start, ssize_
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
@@ -2533,11 +2544,12 @@ int S3fsCurl::PreGetObjectRequest(const char* tpath, int fd, off_t start, ssize_
 
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", NULL);
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("GET", "", "", date, resource);
+	  string Signature = CalcSignature("GET", "", "", date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2597,19 +2609,21 @@ int S3fsCurl::CheckBucket(void)
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource("/", resource, turl);
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = "/";
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("GET", "", "", date, resource);
+	  string Signature = CalcSignature("GET", "", "", date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2642,24 +2656,27 @@ int S3fsCurl::ListBucketRequest(const char* tpath, const char* query)
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource("", resource, turl);    // NOTICE: path is "".
   if(query){
     turl += "?";
     turl += query;
   }
 
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", NULL);
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("GET", "", "", date, resource);
+	  // query has been encoded
+	  string Signature = CalcSignature("GET", "", "", date, resource, urlDecode(query));
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2697,6 +2714,7 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
   S3FS_PRN_ERR("PreMultipartPostRequest1");
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
   string query_string = "uploads";
@@ -2704,7 +2722,7 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
   //query_string += "=";
   turl          += "?" + query_string;
   // resource      += "?" + query_string;
-  url            = prepare_url(turl.c_str());
+  url            = prepare_url(turl.c_str(), host);
   path           = get_realpath(tpath);
   requestHeaders = NULL;
   bodydata       = new BodyData();
@@ -2732,13 +2750,14 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
 
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Length", NULL);
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", contype.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("POST", "", contype, date, resource);
+	  string Signature = CalcSignature("POST", "", contype, date, resource, query_string);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization",  Signature.c_str());
   }
 
@@ -2807,12 +2826,13 @@ int S3fsCurl::CompleteMultipartPostRequest(const char* tpath, string& upload_id,
   }
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
   string query_string  = "uploadId=" + upload_id;
   turl                += "?" + query_string;
   // resource            += "?" + query_string;
-  url                  = prepare_url(turl.c_str());
+  url                  = prepare_url(turl.c_str(), host);
   path                 = get_realpath(tpath);
   requestHeaders       = NULL;
   bodydata             = new BodyData();
@@ -2820,12 +2840,13 @@ int S3fsCurl::CompleteMultipartPostRequest(const char* tpath, string& upload_id,
   string contype       = "application/xml";
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", contype.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("POST", "", contype, date, resource);
+	  string Signature = CalcSignature("POST", "", contype, date, resource, query_string);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2859,22 +2880,26 @@ int S3fsCurl::MultipartListRequest(string& body)
   }
   string resource;
   string turl;
+  string host;
+  string query_string;
   path            = get_realpath("/");
   MakeUrlResource(path.c_str(), resource, turl);
 
-  turl           += "?uploads";
-  resource       += "?uploads";
-  url             = prepare_url(turl.c_str());
+  query_string    = "uploads";
+  turl           += "?" + query_string;
+  resource       += "?" + query_string;
+  url             = prepare_url(turl.c_str(), host);
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("GET", "", "", date, resource);
+	  string Signature = CalcSignature("GET", "", "", date, resource, query_string);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2910,20 +2935,24 @@ int S3fsCurl::AbortMultipartUpload(const char* tpath, string& upload_id)
   }
   string resource;
   string turl;
+  string host;
+  string query_string;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
-  turl           += "?uploadId=" + upload_id;
-  resource       += "?uploadId=" + upload_id;
-  url             = prepare_url(turl.c_str());
+  query_string    = "uploadId=" + upload_id;
+  turl           += "?" + query_string;
+  resource       += "?" + query_string;
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(tpath);
   requestHeaders  = NULL;
   responseHeaders.clear();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("DELETE", "", "", date, resource);
+	  string Signature = CalcSignature("DELETE", "", "", date, resource, query_string);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -2980,10 +3009,11 @@ int S3fsCurl::UploadMultipartPostSetup(const char* tpath, int part_num, string& 
   string urlargs     = "?" + request_uri;
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(tpath).c_str(), resource, turl);
 
   turl              += urlargs;
-  url                = prepare_url(turl.c_str());
+  url                = prepare_url(turl.c_str(), host);
   path               = get_realpath(tpath);
   requestHeaders     = NULL;
   bodydata           = new BodyData();
@@ -2991,6 +3021,7 @@ int S3fsCurl::UploadMultipartPostSetup(const char* tpath, int part_num, string& 
   responseHeaders.clear();
 
   string date    = get_date_rfc850();
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
 
@@ -3009,7 +3040,7 @@ int S3fsCurl::UploadMultipartPostSetup(const char* tpath, int part_num, string& 
   }
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("PUT", strMD5, "", date, resource);
+	  string Signature = CalcSignature("PUT", strMD5, "", date, resource, request_uri);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -3087,10 +3118,11 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
   string urlargs  = "?partNumber=" + str(part_num) + "&uploadId=" + upload_id;
   string resource;
   string turl;
+  string host;
   MakeUrlResource(get_realpath(to).c_str(), resource, turl);
 
   turl           += urlargs;
-  url             = prepare_url(turl.c_str());
+  url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(to);
   requestHeaders  = NULL;
   responseHeaders.clear();
@@ -3111,11 +3143,12 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
 
   string date        = get_date_rfc850();
   string ContentType = S3fsCurl::LookupMimeType(string(to));
+  requestHeaders	 = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
-	  string Signature = CalcSignature("PUT", "", ContentType, date, resource);
+	  string Signature = CalcSignature("PUT", "", ContentType, date, resource, urlargs);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -3856,6 +3889,7 @@ struct curl_slist* curl_slist_sort_insert(struct curl_slist* list, const char* k
   return list;
 }
 
+
 string get_sorted_header_keys(const struct curl_slist* list)
 {
   string sorted_headers;
@@ -3915,10 +3949,10 @@ string get_canonical_headers(const struct curl_slist* list)
   }
 
   for( ; list; list = list->next){
-    string strhead = list->data;
+    string strhead = list->data, strkey;
     size_t pos;
     if(string::npos != (pos = strhead.find(':', 0))){
-      string strkey = trim(lower(strhead.substr(0, pos)));
+      strkey = trim(lower(strhead.substr(0, pos)));
       string strval = trim(strhead.substr(pos + 1));
       if (strval.empty()) {
          continue;
@@ -3928,7 +3962,7 @@ string get_canonical_headers(const struct curl_slist* list)
     }else{
       strhead = trim(lower(strhead));
     }
-    if (strhead.substr(0, 5) != "x-cos") {
+    if (!is_signed_header(strkey)) {
         continue;
     }
     canonical_headers += strhead;
@@ -3941,7 +3975,6 @@ string get_canonical_headers(const struct curl_slist* list)
   }
   return canonical_headers;
 }
-
 
 string get_canonical_header_keys(const struct curl_slist* list)
 {
@@ -3964,14 +3997,16 @@ string get_canonical_header_keys(const struct curl_slist* list)
     }else{
       strhead       = trim(lower(strhead));
     }
-    if (strhead.substr(0, 5) != "x-cos") {
-        continue;
+    if (!is_signed_header(strhead)) {
+      continue;
     }
     canonical_headers += strhead;
-    if (list->next) {
-        canonical_headers += ";";
-    }
+    canonical_headers += ";";
   }
+  if (canonical_headers.size() > 0 && canonical_headers.at(canonical_headers.size() - 1) == ';') {
+      canonical_headers = canonical_headers.substr(0, canonical_headers.size() - 1);
+  }
+
   return canonical_headers;
 }
 
@@ -3994,12 +4029,11 @@ bool MakeUrlResource(const char* realpath, string& resourcepath, string& url)
   return true;
 }
 
-string prepare_url(const char* url)
+string prepare_url(const char* url, string &host)
 {
   S3FS_PRN_INFO3("URL is %s", url);
 
   string uri;
-  string host;
   string path;
   string url_str = str(url);
   string token =  str("/" + bucket);
@@ -4037,6 +4071,73 @@ string prepare_url(const char* url)
   S3FS_PRN_INFO3("URL changed is %s", url_str.c_str());
 
   return str(url_str);
+}
+
+bool is_signed_header(const string &key) {
+  if (key == "host" ||
+    key == "content-length" ||
+    key == "content-type" ||
+    key == "contend-md5" ||
+    key == "range") {
+    return true;
+  }
+  if (key.substr(0, 5) == "x-cos") {
+    return true;
+  }
+  return false;
+}
+
+map<string, string> get_params_from_query_string(const string &query)
+{
+  map<string, string> params;
+
+  stringstream ss(query);
+  string subquery;
+  while (getline(ss, subquery, '&')) {
+    if (!subquery.empty()) {
+      size_t pos;
+      string key, val;
+      if (string::npos != (pos = subquery.find('=', 0))) {
+        key = subquery.substr(0, pos);
+        val = subquery.substr(pos + 1);
+      } else {
+        key = subquery;
+      }
+      params[key] = val;
+    }
+  }
+  return params;
+}
+
+string get_canonical_params(const map<string, string> &requestParams)
+{
+  string canonical_params;
+  map<string, string>::const_iterator iter = requestParams.begin();
+  for (; iter != requestParams.end(); iter++) {
+    // value has been encoded
+    canonical_params += lower(urlEncodeForSign(iter->first)) + string("=") + urlEncodeForSign(iter->second);
+    canonical_params += "&";
+  }
+  if (canonical_params.size() > 0 && canonical_params.at(canonical_params.size() - 1) == '&') {
+      canonical_params[canonical_params.size() - 1] = '\n';
+  } else {
+      canonical_params += '\n';
+  }
+  return canonical_params;
+}
+
+string get_canonical_param_keys(const map<string, string> &requestParams)
+{
+  string canonical_params;
+  map<string, string>::const_iterator iter = requestParams.begin();
+  for (; iter != requestParams.end(); iter++) {
+    canonical_params += lower(urlEncodeForSign(iter->first));
+    canonical_params += ";";
+  }
+  if (canonical_params.size() > 0 && canonical_params.at(canonical_params.size() - 1) == ';') {
+    canonical_params = canonical_params.substr(0, canonical_params.size() - 1);
+  }
+  return canonical_params;
 }
 
 /*

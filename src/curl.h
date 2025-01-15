@@ -306,7 +306,7 @@ class S3fsCurl
     bool ResetHandle(void);
     bool RemakeHandle(void);
     bool ClearInternalData(void);
-    std::string CalcSignature(std::string method, std::string strMD5, std::string content_type, std::string date, std::string resource);
+    std::string CalcSignature(std::string method, std::string strMD5, std::string content_type, std::string date, std::string resource, std::string query);
     bool GetUploadId(std::string& upload_id);
     int GetRAMCredentials(void);
 
@@ -502,9 +502,13 @@ struct curl_slist* curl_slist_sort_insert(struct curl_slist* list, const char* k
 std::string get_sorted_header_keys(const struct curl_slist* list);
 std::string get_canonical_headers(const struct curl_slist* list);
 std::string get_canonical_header_keys(const struct curl_slist* list);
+bool is_signed_header(const std::string &key);
+std::map<std::string, std::string> get_params_from_query_string(const std::string &query);
+std::string get_canonical_params(const std::map<std::string, std::string> &requestParams);
+std::string get_canonical_param_keys(const std::map<std::string, std::string> &requestParams);
 
 bool MakeUrlResource(const char* realpath, std::string& resourcepath, std::string& url);
-std::string prepare_url(const char* url);
+std::string prepare_url(const char* url, std::string &host);
 bool get_object_sse_type(const char* path, sse_type_t& ssetype, std::string& ssevalue);   // implement in s3fs.cpp
 
 #endif // S3FS_CURL_H_
