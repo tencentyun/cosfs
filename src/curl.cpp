@@ -4077,7 +4077,7 @@ bool is_signed_header(const string &key) {
   if (key == "host" ||
     key == "content-length" ||
     key == "content-type" ||
-    key == "contend-md5" ||
+    key == "content-md5" ||
     key == "range") {
     return true;
   }
