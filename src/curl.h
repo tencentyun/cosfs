@@ -238,6 +238,7 @@ class S3fsCurl
     static off_t            multipart_size;
     static bool             is_sigv4;
     static std::string skUserAgent;
+    static bool             is_client_info_in_delete;
 
     // variables
     CURL*                hCurl;
@@ -370,6 +371,9 @@ class S3fsCurl
     static off_t GetMultipartSize(void) { return S3fsCurl::multipart_size; }
     static bool SetSignatureV4(bool isset) { bool bresult = S3fsCurl::is_sigv4; S3fsCurl::is_sigv4 = isset; return bresult; }
     static bool IsSignatureV4(void) { return S3fsCurl::is_sigv4; }
+    static void SetClientInfoInDelete(bool is_set) { S3fsCurl::is_client_info_in_delete = is_set; }
+    static bool IsClientInfoInDelete(void) { return S3fsCurl::is_client_info_in_delete; }
+    static std::string GetClientInfo(std::string pid);
 
     // methods
     bool CreateCurlHandle(bool force = false);
@@ -378,7 +382,7 @@ class S3fsCurl
     bool AddSseRequestHead(sse_type_t ssetype, std::string& ssevalue, bool is_only_c, bool is_copy);
     bool GetResponseCode(long& responseCode);
     int RequestPerform(void);
-    int DeleteRequest(const char* tpath);
+    int DeleteRequest(const char* tpath, int pid);
     bool PreHeadRequest(const char* tpath, const char* bpath = NULL, const char* savedpath = NULL, int ssekey_pos = -1);
     bool PreHeadRequest(std::string& tpath, std::string& bpath, std::string& savedpath, int ssekey_pos = -1) {
       return PreHeadRequest(tpath.c_str(), bpath.c_str(), savedpath.c_str(), ssekey_pos);

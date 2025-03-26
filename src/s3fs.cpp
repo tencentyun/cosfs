@@ -1025,8 +1025,10 @@ static int s3fs_unlink(const char* path)
 
   S3FS_PRN_INFO("[path=%s]", path);
 
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1034,7 +1036,7 @@ static int s3fs_unlink(const char* path)
     return result;
   }
   S3fsCurl s3fscurl;
-  result = s3fscurl.DeleteRequest(path);
+  result = s3fscurl.DeleteRequest(path, pid);
   FdManager::DeleteCacheFile(path);
   StatCache::getStatCacheData()->DelStat(path);
   S3FS_MALLOCTRIM(0);
@@ -1065,8 +1067,10 @@ static int s3fs_rmdir(const char* path)
 
   S3FS_PRN_INFO("[path=%s]", path);
 
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1084,7 +1088,7 @@ static int s3fs_rmdir(const char* path)
     strpath += "/";
   }
   S3fsCurl s3fscurl;
-  result = s3fscurl.DeleteRequest(strpath.c_str());
+  result = s3fscurl.DeleteRequest(strpath.c_str(), pid);
   s3fscurl.DestroyCurlHandle();
   StatCache::getStatCacheData()->DelStat(strpath.c_str());
 
@@ -1099,7 +1103,7 @@ static int s3fs_rmdir(const char* path)
   if(0 == get_object_attribute(strpath.c_str(), &stbuf, NULL, false)){
     if(S_ISDIR(stbuf.st_mode)){
       // Found "dir" object.
-      result = s3fscurl.DeleteRequest(strpath.c_str());
+      result = s3fscurl.DeleteRequest(strpath.c_str(), pid);
       s3fscurl.DestroyCurlHandle();
       StatCache::getStatCacheData()->DelStat(strpath.c_str());
     }
@@ -1111,7 +1115,7 @@ static int s3fs_rmdir(const char* path)
   // This processing is necessary for other OSS clients compatibility.
   if(is_special_name_folder_object(strpath.c_str())){
     strpath += "_$folder$";
-    result   = s3fscurl.DeleteRequest(strpath.c_str());
+    result   = s3fscurl.DeleteRequest(strpath.c_str(), pid);
   }
   S3FS_MALLOCTRIM(0);
 
@@ -1566,8 +1570,10 @@ static int s3fs_chmod(const char* path, mode_t mode)
 
   S3FS_PRN_INFO("[path=%s][mode=%04o]", path, mode);
 
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1600,7 +1606,7 @@ static int s3fs_chmod(const char* path, mode_t mode)
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -1665,8 +1671,10 @@ static int s3fs_chmod_nocopy(const char* path, mode_t mode)
 
   S3FS_PRN_INFO1("[path=%s][mode=%04o]", path, mode);
 
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1700,7 +1708,7 @@ static int s3fs_chmod_nocopy(const char* path, mode_t mode)
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -1750,8 +1758,10 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
 
   S3FS_PRN_INFO("[path=%s][uid=%u][gid=%u]", path, (unsigned int)uid, (unsigned int)gid);
 
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1799,7 +1809,7 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -1864,8 +1874,10 @@ static int s3fs_chown_nocopy(const char* path, uid_t uid, gid_t gid)
   int         nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO1("[path=%s][uid=%u][gid=%u]", path, (unsigned int)uid, (unsigned int)gid);
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1908,7 +1920,7 @@ static int s3fs_chown_nocopy(const char* path, uid_t uid, gid_t gid)
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -1958,8 +1970,10 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
   int nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO("[path=%s][mtime=%jd]", path, (intmax_t)(ts[1].tv_sec));
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -1994,7 +2008,7 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -2056,8 +2070,10 @@ static int s3fs_utimens_nocopy(const char* path, const struct timespec ts[2])
   int         nDirType = DIRTYPE_UNKNOWN;
 
   S3FS_PRN_INFO1("[path=%s][mtime=%s]", path, str(ts[1].tv_sec).c_str());
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -2093,7 +2109,7 @@ static int s3fs_utimens_nocopy(const char* path, const struct timespec ts[2])
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -3223,6 +3239,13 @@ static int s3fs_setxattr(const char* path, const char* name, const char* value, 
   }
 #endif
 
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   int         result;
   string      strpath;
   string      newpath;
@@ -3265,7 +3288,7 @@ static int s3fs_setxattr(const char* path, const char* name, const char* value, 
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         return result;
       }
     }
@@ -3497,8 +3520,10 @@ static int s3fs_listxattr(const char* path, char* list, size_t size)
 static int s3fs_removexattr(const char* path, const char* name)
 {
   S3FS_PRN_INFO("[path=%s][name=%s]", path, name);
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -3575,7 +3600,7 @@ static int s3fs_removexattr(const char* path, const char* name)
     // At first, remove directory old object
     if(IS_RMTYPEDIR(nDirType)){
       S3fsCurl s3fscurl;
-      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str()))){
+      if(0 != (result = s3fscurl.DeleteRequest(strpath.c_str(), pid))){
         free_xattrs(xattrs);
         return result;
       }
@@ -4631,6 +4656,10 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     }
     if(0 == STR2NCMP(arg, "use_cache=")){
       FdManager::SetCacheDir(strchr(arg, '=') + sizeof(char));
+      return 0;
+    }
+    if(0 == STR2NCMP(arg, "enable_clientinfo")){
+      S3fsCurl::SetClientInfoInDelete(true);
       return 0;
     }
     if(0 == strcmp(arg, "del_cache")){
