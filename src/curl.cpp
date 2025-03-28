@@ -311,6 +311,7 @@ int              S3fsCurl::max_parallel_cnt    = 10;              // default
 off_t            S3fsCurl::multipart_size      = MULTIPART_SIZE; // default
 bool             S3fsCurl::is_sigv4            = true;           // default
 string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
+bool             S3fsCurl::is_client_info_in_delete = false;           // default
 
 //-------------------------------------------------------------------
 // Class methods for S3fsCurl
@@ -2135,7 +2136,7 @@ bool S3fsCurl::GetUploadId(string& upload_id)
   return result;
 }
 
-int S3fsCurl::DeleteRequest(const char* tpath)
+int S3fsCurl::DeleteRequest(const char* tpath, int pid)
 {
   S3FS_PRN_INFO3("[tpath=%s]", SAFESTRPTR(tpath));
 
@@ -2162,6 +2163,13 @@ int S3fsCurl::DeleteRequest(const char* tpath)
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("DELETE", "", "", date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
+  }
+  if(S3fsCurl::IsClientInfoInDelete()){
+      ostringstream pidstr;
+      pidstr << pid;
+      string clientinfo = S3fsCurl::GetClientInfo(pidstr.str());
+      requestHeaders = curl_slist_sort_insert(requestHeaders, "x-delete-client-pid", pidstr.str().c_str());
+      requestHeaders = curl_slist_sort_insert(requestHeaders, "x-delete-client-cgroup", clientinfo.c_str());
   }
 
   curl_easy_setopt(hCurl, CURLOPT_URL, url.c_str());
@@ -3382,6 +3390,29 @@ int S3fsCurl::MultipartRenameRequest(const char* from, const char* to, headers_t
     return result;
   }
   return 0;
+}
+
+std::string S3fsCurl::GetClientInfo(std::string pid)
+{
+  if (pid == "-1") {
+    return "can not get pid";
+  }
+  std::string path = "/proc/" + pid + "/cgroup";
+  std::ifstream ifs(path.c_str());
+  if (!ifs) {
+    S3FS_PRN_ERR("failed to open %s", path.c_str());
+    return "failed to open " + path;
+  }
+  std::string line;
+  while (std::getline(ifs, line)) {
+    if (line.find("cpu,cpuacct") != std::string::npos) {
+      return line;
+    }
+    if (line.find("cpuacct,cpu") != std::string::npos) {
+      return line;
+    }
+  }
+  return "not found cpu,cpuacct";
 }
 
 //-------------------------------------------------------------------
