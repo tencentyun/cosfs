@@ -97,6 +97,31 @@ static bool make_md5_from_string(const char* pstr, string& md5)
   return true;
 }
 
+struct curl_slist* curl_slist_remove(struct curl_slist* list, const char* key) {
+  struct curl_slist* current = list;
+  struct curl_slist* prev = NULL;
+
+  // 遍历链表
+  while (current != NULL) {
+    if (strncmp(current->data, key, strlen(key)) == 0) {
+      // 找到匹配节点
+      if (prev == NULL) {
+        // 删除头节点
+        list = current->next;
+      } else {
+        // 删除中间或尾部节点
+        prev->next = current->next;
+      }
+      // 释放当前节点内存
+      free(current->data);
+      free(current);
+      break;
+    }
+    prev = current;
+    current = current->next;
+  }
+  return list;
+}
 
 //-------------------------------------------------------------------
 // Class BodyData
@@ -2391,6 +2416,7 @@ int S3fsCurl::PutHeadRequest(const char* tpath, headers_t& meta, bool is_copy)
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Length", "0");
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", "", ContentType, date, resource, "");
@@ -2489,6 +2515,11 @@ int S3fsCurl::PutRequest(const char* tpath, headers_t& meta, int fd)
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
 
+  if(file) {
+    requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Length", str(st.st_size).c_str());
+  } else {
+    requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Length", "0");
+  }
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", strMD5, ContentType, date, resource, "");
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization",Signature.c_str());
@@ -2761,7 +2792,7 @@ int S3fsCurl::PreMultipartPostRequest(const char* tpath, headers_t& meta, string
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
-  requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Length", NULL);
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Length", "0");
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", contype.c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
@@ -2852,6 +2883,7 @@ int S3fsCurl::CompleteMultipartPostRequest(const char* tpath, string& upload_id,
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Accept", NULL);
   requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Type", contype.c_str());
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Length", str(postdata_remaining).c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("POST", "", contype, date, resource, query_string);
@@ -3046,6 +3078,7 @@ int S3fsCurl::UploadMultipartPostSetup(const char* tpath, int part_num, string& 
       delete[] md5base64p;
       delete[] md5raw;
   }
+  requestHeaders = curl_slist_sort_insert(requestHeaders, "Content-Length", str(partdata.size).c_str());
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", strMD5, "", date, resource, request_uri);
@@ -3154,6 +3187,7 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
   requestHeaders	 = curl_slist_sort_insert(requestHeaders, "Host", host.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Date", date.c_str());
   requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Type", ContentType.c_str());
+  requestHeaders     = curl_slist_sort_insert(requestHeaders, "Content-Length", "0");
 
   if(!S3fsCurl::IsPublicBucket()){
 	  string Signature = CalcSignature("PUT", "", ContentType, date, resource, urlargs);
