@@ -4074,7 +4074,7 @@ static int s3fs_check_service(void)
 // Return:  1 - OK(could read and set accesskey etc.)
 //          0 - NG(could not read)
 //         -1 - Should shoutdown immidiatly
-int check_for_cos_format(void)
+int check_for_cos_format(bool updated)
 {
   size_t first_pos = string::npos;
   string line;
@@ -4155,6 +4155,14 @@ int check_for_cos_format(void)
     }
   }
 
+  // 秘钥更新
+  if (updated) {
+    if (got_access_key_id_line && got_secret_key_line && got_token_line && got_token_expire_line) {
+      S3fsCurl::SetAccessKeyWithToken(AccessKeyId, SecretAccesskey, Token, TokenExpire);
+      return 1;
+    }
+    return 0;
+  }
    // token and token expire are optional
   if (got_token_line && got_token_expire_line) {
       S3fsCurl::SetToken(Token, TokenExpire);
@@ -4254,7 +4262,7 @@ static int read_passwd_file(void)
     return EXIT_FAILURE;
   }
 
-  int cos_format = check_for_cos_format();
+  int cos_format = check_for_cos_format(false);
   if(1 == cos_format){
      return EXIT_SUCCESS;
   }else if(-1 == cos_format){
@@ -4848,6 +4856,11 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     if(0 == STR2NCMP(arg, "cam_role=")){
       const char* role = strchr(arg, '=') + sizeof(char);
       S3fsCurl::SetCAMRole(role);
+      return 0;
+    }
+    if(0 == STR2NCMP(arg, "cam_role_endpoint=")){
+      const char* role_url = strchr(arg, '=') + sizeof(char);
+      S3fsCurl::SetCAMRoleUrl(role_url);
       return 0;
     }
     if(0 == STR2NCMP(arg, "public_bucket=")){
