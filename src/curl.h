@@ -224,11 +224,13 @@ class S3fsCurl
     static sse_type_t       ssetype;
     static bool             is_content_md5;
     static bool             is_verbose;
+    static pthread_mutex_t  token_lock;
     static std::string      COSAccessKeyId;
     static std::string      COSSecretAccessKey;
     static std::string      COSAccessToken;
     static time_t           COSAccessTokenExpire;
     static std::string      CAM_role;
+    static std::string      CAM_role_url;
     static long             ssl_verify_hostname;
     static curltime_t       curl_times;
     static curlprogress_t   curl_progress;
@@ -357,6 +359,9 @@ class S3fsCurl
     static bool GetVerbose(void) { return S3fsCurl::is_verbose; }
     static bool SetAccessKey(const char* AccessKeyId, const char* SecretAccessKey);
     static bool SetToken(const std::string& token, const std::string& token_expire);
+    static bool GetAccessKey(std::string &accessKey, std::string &secretKey);
+    static bool GetAccessKeyWithToken(std::string &accessKey, std::string &secretKey, std::string &token);
+    static bool SetAccessKeyWithToken(const std::string& accessKey, const std::string& secretKey, const std::string& token, const std::string& token_expired);
     static bool IsSetAccessKeyId(void){
                   return (0 < S3fsCurl::CAM_role.size() || (0 < S3fsCurl::COSAccessKeyId.size() && 0 < S3fsCurl::COSSecretAccessKey.size()));
                 }
@@ -367,6 +372,7 @@ class S3fsCurl
     static int GetMaxParallelCount(void) { return S3fsCurl::max_parallel_cnt; }
     static std::string SetCAMRole(const char* role);
     static const char* GetRAMRole(void) { return S3fsCurl::CAM_role.c_str(); }
+    static std::string SetCAMRoleUrl(const char *role_url);
     static bool SetMultipartSize(off_t size);
     static off_t GetMultipartSize(void) { return S3fsCurl::multipart_size; }
     static bool SetSignatureV4(bool isset) { bool bresult = S3fsCurl::is_sigv4; S3fsCurl::is_sigv4 = isset; return bresult; }

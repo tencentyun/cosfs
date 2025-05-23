@@ -55,7 +55,7 @@ using namespace std;
 
 static const std::string empty_payload_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
-extern int check_for_cos_format(void); // implented in s3fs.cpp
+extern int check_for_cos_format(bool); // implented in s3fs.cpp
 //-------------------------------------------------------------------
 // Utilities
 //-------------------------------------------------------------------
@@ -288,10 +288,10 @@ void CurlHandlerPool::ReturnHandler(CURL* h)
 #define MULTIPART_SIZE              10485760          // 10MB
 #define MAX_MULTI_COPY_SOURCE_SIZE  524288000         // 500MB
 
-#define	RAM_EXPIRE_MERGIN           (20 * 60)         // update timming
+#define	RAM_EXPIRE_MERGIN           (10 * 60)         // update timming
 #define	RAM_CRED_URL                ""
-#define RAMCRED_ACCESSKEYID         "AccessKeyId"
-#define RAMCRED_SECRETACCESSKEY     "SecretAccessKey"
+#define RAMCRED_ACCESSKEYID         "TmpSecretId"
+#define RAMCRED_SECRETACCESSKEY     "TmpSecretKey"
 #define RAMCRED_ACCESSTOKEN         "Token"
 #define RAMCRED_EXPIRATION          "Expiration"
 #define RAMCRED_KEYCOUNT            4
@@ -322,11 +322,13 @@ std::string      S3fsCurl::ssekmsid            = "";
 sse_type_t       S3fsCurl::ssetype             = SSE_DISABLE;
 bool             S3fsCurl::is_content_md5      = true;
 bool             S3fsCurl::is_verbose          = false;
+pthread_mutex_t  S3fsCurl::token_lock;
 string           S3fsCurl::COSAccessKeyId;
 string           S3fsCurl::COSSecretAccessKey;
 string           S3fsCurl::COSAccessToken;
 time_t           S3fsCurl::COSAccessTokenExpire= 0;
 string           S3fsCurl::CAM_role;
+string           S3fsCurl::CAM_role_url        = RAM_CRED_URL;
 long             S3fsCurl::ssl_verify_hostname = 1;    // default(original code...)
 curltime_t       S3fsCurl::curl_times;
 curlprogress_t   S3fsCurl::curl_progress;
@@ -335,7 +337,7 @@ mimes_t          S3fsCurl::mimeTypes;
 int              S3fsCurl::max_parallel_cnt    = 10;              // default
 off_t            S3fsCurl::multipart_size      = MULTIPART_SIZE; // default
 bool             S3fsCurl::is_sigv4            = true;           // default
-string     S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
+string           S3fsCurl::skUserAgent = "tencentyun-cosfs-v5-" + string(VERSION);
 bool             S3fsCurl::is_client_info_in_delete = false;           // default
 
 //-------------------------------------------------------------------
@@ -366,6 +368,9 @@ bool S3fsCurl::InitS3fsCurl(const char* MimeFile)
     return false;
   }
   if(!S3fsCurl::InitCryptMutex()){
+    return false;
+  }
+  if(0 != pthread_mutex_init(&S3fsCurl::token_lock, NULL)){
     return false;
   }
   return true;
@@ -1098,12 +1103,15 @@ bool S3fsCurl::checkSTSCredentialUpdate(void) {
         return true;
     }
 
-    if (time(NULL) <= S3fsCurl::COSAccessTokenExpire) {
-        return true;
+    {
+        AutoLock auto_lock(&token_lock);
+        if (time(NULL) + RAM_EXPIRE_MERGIN <= S3fsCurl::COSAccessTokenExpire) {
+            return true;
+        }
     }
 
    // if return value is not equal 1, means wrong format key
-   if (check_for_cos_format() != 1) {
+   if (check_for_cos_format(true) != 1) {
        return false;
    }
 
@@ -1127,6 +1135,33 @@ bool S3fsCurl::SetAccessKey(const char* AccessKeyId, const char* SecretAccessKey
   return true;
 }
 
+bool S3fsCurl::GetAccessKey(std::string &accessKey, std::string &secretKey)
+{
+  accessKey = COSAccessKeyId;
+  secretKey = COSSecretAccessKey;
+  return true;
+}
+
+// 自动更新秘钥
+bool S3fsCurl::GetAccessKeyWithToken(std::string &accessKey, std::string &secretKey, std::string &token)
+{
+    AutoLock auto_lock(&token_lock);
+    accessKey = COSAccessKeyId;
+    secretKey = COSSecretAccessKey;
+    token = COSAccessToken;
+    return true;
+}
+
+bool S3fsCurl::SetAccessKeyWithToken(const std::string& accessKey, const std::string& secretKey, const std::string& token, const std::string& token_expired)
+{
+    AutoLock auto_lock(&token_lock);
+    COSAccessKeyId = accessKey;
+    COSSecretAccessKey = secretKey;
+    COSAccessToken = token;
+    COSAccessTokenExpire = cvtCAMExpireStringToTime(token_expired.c_str());
+    return true;
+}
+
 long S3fsCurl::SetSslVerifyHostname(long value)
 {
   if(0 != value && 1 != value){
@@ -1141,6 +1176,13 @@ string S3fsCurl::SetCAMRole(const char* role)
 {
   string old = S3fsCurl::CAM_role;
   S3fsCurl::CAM_role = role ? role : "";
+  return old;
+}
+
+string S3fsCurl::SetCAMRoleUrl(const char* role_url)
+{
+  string old = S3fsCurl::CAM_role_url;
+  S3fsCurl::CAM_role_url = role_url ? role_url : "";
   return old;
 }
 
@@ -1450,17 +1492,19 @@ bool S3fsCurl::SetRAMCredentials(const char* response)
   ramcredmap_t keyval;
 
   if(!ParseRAMCredentialResponse(response, keyval)){
+    S3FS_PRN_ERR("could not parse RAM credential response.");
     return false;
   }
   if(RAMCRED_KEYCOUNT != keyval.size()){
+    S3FS_PRN_ERR("parse RAM credential response failed, key count: %ld.", keyval.size());
     return false;
   }
 
+  AutoLock auto_lock(&token_lock);
   S3fsCurl::COSAccessKeyId       = keyval[string(RAMCRED_ACCESSKEYID)];
   S3fsCurl::COSSecretAccessKey   = keyval[string(RAMCRED_SECRETACCESSKEY)];
   S3fsCurl::COSAccessToken       = keyval[string(RAMCRED_ACCESSTOKEN)];
   S3fsCurl::COSAccessTokenExpire = cvtCAMExpireStringToTime(keyval[string(RAMCRED_EXPIRATION)].c_str());
-
   return true;
 }
 
@@ -1475,8 +1519,11 @@ bool S3fsCurl::CheckRAMCredentialUpdate(void)
   if(0 == S3fsCurl::CAM_role.size()){
     return true;
   }
-  if(time(NULL) + RAM_EXPIRE_MERGIN <= S3fsCurl::COSAccessTokenExpire){
-    return true;
+  {
+	AutoLock auto_lock(&token_lock);
+	if(time(NULL) + RAM_EXPIRE_MERGIN <= S3fsCurl::COSAccessTokenExpire){
+		return true;
+	}
   }
   // update
   S3fsCurl s3fscurl;
@@ -2056,17 +2103,28 @@ int S3fsCurl::RequestPerform(void)
 string S3fsCurl::CalcSignature(string method, string strMD5, string content_type, string date, string resource, string query)
 {
   string Signature;
+  string accessKey, secretKey, accessToken;
 
   if (0 < S3fsCurl::CAM_role.size()) {
-      if (!S3fsCurl::checkSTSCredentialUpdate()) {
-          S3FS_PRN_ERR("Something error occurred in checking CAM STS Credential");
-          return Signature;
+    if (0 < S3fsCurl::CAM_role_url.size()) {
+      if (!S3fsCurl::CheckRAMCredentialUpdate()) {
+        S3FS_PRN_ERR("Something error occurred in checking CAM Role Credential");
+        return Signature;
       }
-      requestHeaders = curl_slist_sort_insert(requestHeaders, "x-cos-security-token", S3fsCurl::COSAccessToken.c_str());
+    } else {
+      if (!S3fsCurl::checkSTSCredentialUpdate()) {
+        S3FS_PRN_ERR("Something error occurred in checking CAM STS Credential");
+        return Signature;
+      }
+    }
+    S3fsCurl::GetAccessKeyWithToken(accessKey, secretKey, accessToken);
+    requestHeaders = curl_slist_sort_insert(requestHeaders, "x-cos-security-token", accessToken.c_str());
+  } else {
+    S3fsCurl::GetAccessKey(accessKey, secretKey);
   }
 
-  const void* key            = S3fsCurl::COSSecretAccessKey.data();
-  int key_len                = S3fsCurl::COSSecretAccessKey.size();
+  const void* key            = secretKey.data();
+  int key_len                = secretKey.size();
 
   // first, get sign key
   time_t key_t_s = time(NULL) - 10;
@@ -2105,7 +2163,7 @@ string S3fsCurl::CalcSignature(string method, string strMD5, string content_type
   string sign_data_hex = s3fs_hex(sign_data, sign_len);
 
   Signature += "q-sign-algorithm=sha1&";
-  Signature += string("q-ak=") + S3fsCurl::COSAccessKeyId + "&";
+  Signature += string("q-ak=") + accessKey + "&";
   Signature += string("q-sign-time=") + q_key_time + "&";
   Signature += string("q-key-time=") + q_key_time + "&q-url-param-list=" + get_canonical_param_keys(requestParams) + "&";
   Signature += string("q-header-list=") + get_canonical_header_keys(requestHeaders) + "&";
@@ -2226,7 +2284,7 @@ int S3fsCurl::GetRAMCredentials(void)
   }
 
   // url
-  url             = string(RAM_CRED_URL) + S3fsCurl::CAM_role;
+  url             = S3fsCurl::CAM_role_url + "/" + S3fsCurl::CAM_role;
   requestHeaders  = NULL;
   responseHeaders.clear();
   bodydata        = new BodyData();
