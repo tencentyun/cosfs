@@ -1103,8 +1103,11 @@ bool S3fsCurl::checkSTSCredentialUpdate(void) {
         return true;
     }
 
-    if (time(NULL) <= S3fsCurl::COSAccessTokenExpire) {
-        return true;
+    {
+        AutoLock auto_lock(&token_lock);
+        if (time(NULL) <= S3fsCurl::COSAccessTokenExpire) {
+            return true;
+        }
     }
 
    // if return value is not equal 1, means wrong format key
