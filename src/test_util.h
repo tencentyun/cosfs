@@ -21,10 +21,24 @@
 #include <cstdlib>
 #include <iostream>
 
+template <typename T> void assert_nonil(const T *x, const char *file, int line)
+{
+    if (x == NULL) {
+        std::cerr << "NULL at " << file << ":" << line << std::endl;
+        std::exit(1);
+    }
+}
 template <typename T> void assert_equals(const T &x, const T &y, const char *file, int line)
 {
   if (x != y) {
     std::cerr << x << " != " << y << " at " << file << ":" << line << std::endl;
+    std::exit(1);
+  }
+}
+template <typename T> void assert_not_equals(const T &x, const T &y, const char *file, int line)
+{
+  if (x == y) {
+    std::cerr << x << " == " << y << " at " << file << ":" << line << std::endl;
     std::exit(1);
   }
 }
@@ -39,8 +53,14 @@ void assert_strequals(const char *x, const char *y, const char *file, int line)
   }
 }
 
+#define ASSERT_NONIL(x) \
+  assert_nonil((x), __FILE__, __LINE__)
+
 #define ASSERT_EQUALS(x, y) \
   assert_equals((x), (y), __FILE__, __LINE__)
+
+#define ASSERT_NOTEQUALS(x, y) \
+  assert_not_equals((x), (y), __FILE__, __LINE__)
 
 #define ASSERT_STREQUALS(x, y) \
   assert_strequals((x), (y), __FILE__, __LINE__)

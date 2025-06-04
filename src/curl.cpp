@@ -1912,8 +1912,15 @@ int S3fsCurl::RequestPerform(void)
     S3FS_PRN_DBG("connecting to URL %s", SAFESTRPTR(ptr_url));
   }
 
+#ifdef TEST_COSFS
+  test_request_count = 0;
+#endif
   // 1 attempt + retries...
   for(int retrycnt = S3fsCurl::retries; 0 < retrycnt; retrycnt--){
+
+#ifdef TEST_COSFS
+	test_request_count++;
+#endif
     // Requests
 	// XXX
 	//curl_easy_setopt(hCurl, CURLOPT_HEADERDATA, (void*)&responseHeaders);
