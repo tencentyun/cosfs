@@ -267,7 +267,7 @@ class S3fsCurl
     int                  b_ssekey_pos;         // backup for retrying
     std::string          b_ssevalue;           // backup for retrying
     sse_type_t           b_ssetype;            // backup for retrying
-
+    int                  test_request_count;   // request count for test
   public:
     // constructor/destructor
     explicit S3fsCurl(bool ahbe = false);
@@ -428,6 +428,7 @@ class S3fsCurl
     void SetMultipartRetryCount(int retrycnt) { retry_count = retrycnt; }
     bool IsOverMultipartRetryCount(void) const { return (retry_count >= S3fsCurl::retries); }
     int GetLastPreHeadSeecKeyPos(void) const { return b_ssekey_pos; }
+    int GetTestRequestCount(void) { return test_request_count; }
 };
 
 //----------------------------------------------

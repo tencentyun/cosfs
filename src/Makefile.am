@@ -37,8 +37,23 @@ endif
 
 cosfs_LDADD = $(DEPS_LIBS)
 
-noinst_PROGRAMS = test_string_util
+
+noinst_PROGRAMS = test_string_util test_cosfs
 
 test_string_util_SOURCES = string_util.cpp test_string_util.cpp test_util.h
 
-TESTS = test_string_util
+test_cosfs_SOURCES = s3fs.cpp test_cosfs.cpp test_retry.cpp test_util.h s3fs.h curl.cpp curl.h cache.cpp cache.h string_util.cpp string_util.h s3fs_util.cpp s3fs_util.h fdcache.cpp fdcache.h common_auth.cpp s3fs_auth.h common.h
+if USE_SSL_OPENSSL
+  test_cosfs_SOURCES += openssl_auth.cpp
+endif
+if USE_SSL_GNUTLS
+  test_cosfs_SOURCES += gnutls_auth.cpp
+endif
+if USE_SSL_NSS
+  test_cosfs_SOURCES += nss_auth.cpp
+endif
+
+test_cosfs_CPPFLAGS = $(DEPS_CFLAGS) -DTEST_COSFS
+test_cosfs_LDADD = $(DEPS_LIBS)
+
+TESTS = test_string_util test_cosfs

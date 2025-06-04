@@ -5125,6 +5125,10 @@ static void s3fs_exit_fuseloop(int exit_status) {
 
 int main(int argc, char* argv[])
 {
+#ifdef TEST_COSFS
+  extern int TestMain();
+  return TestMain();
+#endif
   int ch;
   int fuse_res;
   int option_index = 0;
