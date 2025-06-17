@@ -187,6 +187,7 @@ string urlEncodeForSign(const string &s) {
     if (c == '.'
       || c == '-'
       || c == '_'
+      || c == '~'
       || (c >= 'a' && c <= 'z')
       || (c >= 'A' && c <= 'Z')
       || (c >= '0' && c <= '9')) {
