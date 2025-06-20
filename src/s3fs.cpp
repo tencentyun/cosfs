@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <cstdlib>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,8 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/tree.h>
@@ -4343,6 +4346,98 @@ static int read_passwd_file(void)
   return EXIT_SUCCESS;
 }
 
+static int read_from_aksk_agent(void)
+{
+  int sock;
+  struct sockaddr_un s_un;
+  int n;
+  char buf[4096];
+
+  char* aksk_tag = getenv("AKSK_TAG");
+  if (NULL == aksk_tag) {
+    S3FS_PRN_EXIT("you must provide your aksk tag as environment AKSK_TAG's value if you wanna use aksk agent");
+    return EXIT_FAILURE;
+  }
+
+  sock = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (sock < 0){
+    return EXIT_FAILURE;
+  }
+  S3FS_PRN_INFO("connecting aksk agent, local sock:%d", sock);
+
+  s_un.sun_family = AF_UNIX;
+  strcpy(s_un.sun_path, "/tmp/aksk.sock");
+
+  if(connect(sock, (struct sockaddr*)&s_un, strlen(s_un.sun_path) + sizeof(s_un.sun_family)) != 0){
+    S3FS_PRN_EXIT("failed to connect to aksk agent, err:%s", strerror(errno));
+    close(sock);
+    return EXIT_FAILURE;
+  }
+  S3FS_PRN_INFO("aksk agent connected");
+
+  const char* data_format = "{\"tag\":\"%s\", \"sdkverion\":\"%s\", \"pid\":%d}";
+  char send_data[4096];
+  int total = sprintf(send_data, data_format, aksk_tag, "1.1.1", getpid());
+  S3FS_PRN_DBG("send data total:%d bytes, %s", total, send_data);
+  int send_data_len = send(sock, send_data, total, 0);
+  S3FS_PRN_DBG("%d bytes sent\n", send_data_len);
+  
+  memset(buf, 0, sizeof(buf));
+  n = recv(sock, buf, sizeof(buf), 0);
+  if (n < 0) {
+    S3FS_PRN_EXIT("failed to read response from aksk agent, err:%s", strerror(errno));
+    close(sock);
+    return EXIT_FAILURE;
+  }
+
+  // json like {"SecretID":"xxxxx","SecretKey":"yyyyyyy"}
+  S3FS_PRN_DBG("%d bytes read, %s", n, buf);
+  close(sock);
+
+  // find SecretID
+  const char * sid = strstr(buf, "\"SecretID\":");
+  const char * skey = strstr(buf, "\"SecretKey\":");
+  if (NULL == sid || NULL == skey) {
+      S3FS_PRN_EXIT("aksk response return invalid json, no SecretID or SecretKey");
+      return EXIT_FAILURE;
+  }
+  char secret_id[64] = {};
+  char secret_key[64] = {};
+
+  // get secret id 
+  const char * begin = sid + sizeof("\"SecretID\":") - 1;
+  const char * end = begin + 1;
+  while (NULL != end && *end != '\"') {
+    ++end;
+    if (end - begin >= 64) {
+      S3FS_PRN_EXIT("aksk response return invalid json");
+      return EXIT_FAILURE;
+    }
+  }
+  memcpy(secret_id, begin + 1, end - begin - 1);
+  
+
+  // get secret key
+  begin = skey + sizeof("\"SecretKey\":") - 1;
+  end = begin + 1;
+  while (NULL != end && *end != '\"') {
+    ++end;
+    if (end - begin >= 64) {
+      S3FS_PRN_EXIT("aksk response return invalid json");
+      return EXIT_FAILURE;
+    }
+  }
+  memcpy(secret_key, begin + 1, end - begin - 1);
+
+  S3FS_PRN_INFO("parse aksk agent response done, SecretID:%s, SecretKey:%s\n", secret_id, secret_key);
+  if(!S3fsCurl::SetAccessKey(secret_id, secret_key)){
+    S3FS_PRN_EXIT("failed to set access key fetch from aksk");
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+
 //
 // get_access_keys
 //
@@ -4357,7 +4452,7 @@ static int read_passwd_file(void)
 // 3 - from environment variables
 // 4 - from the users ~/.passwd-cosfs
 // 5 - from /etc/passwd-cosfs
-//
+// 6 - from aksk local agent ... you should set AKSK_TAG environment value
 static int get_access_keys(void)
 {
   // should be redundant
@@ -4446,6 +4541,11 @@ static int get_access_keys(void)
     S3FS_PRN_EXIT("COS_CREDENTIAL_FILE: \"%s\" is not readable.", passwd_file.c_str());
   }
 
+  if (NULL != getenv("AKSK_TAG")) {
+    // 6 from aksk agent unix socket ..
+    // default path is /tmp/aksk.socket
+    return read_from_aksk_agent();
+  }
   return EXIT_FAILURE;
 }
 
