@@ -3221,13 +3221,13 @@ int S3fsCurl::CopyMultipartPostRequest(const char* from, const char* to, int par
   if(!CreateCurlHandle(true)){
     return -1;
   }
-  string urlargs  = "?partNumber=" + str(part_num) + "&uploadId=" + upload_id;
+  string urlargs  = "partNumber=" + str(part_num) + "&uploadId=" + upload_id;
   string resource;
   string turl;
   string host;
   MakeUrlResource(get_realpath(to).c_str(), resource, turl);
 
-  turl           += urlargs;
+  turl           += "?" + urlargs;
   url             = prepare_url(turl.c_str(), host);
   path            = get_realpath(to);
   requestHeaders  = NULL;
