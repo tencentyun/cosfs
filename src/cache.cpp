@@ -308,9 +308,13 @@ bool StatCache::IncSize(const std::string& key, ssize_t sz)
 	if (found) {
 		stat_cache_entry* entry = iter->second;
 		entry->stbuf.st_size += sz;
-		S3FS_PRN_INFO3(
-				"Update file size in stat cache. [path=%s][size=%ld][delta=%ld]", 
-				key.c_str(), entry->stbuf.st_size, sz);
+#if __WORDSIZE == 32
+        S3FS_PRN_INFO3("Update file size in stat cache. [path=%s][size=%lld][delta=%ld]",
+        			   key.c_str(), entry->stbuf.st_size, sz);
+#else
+        S3FS_PRN_INFO3("Update file size in stat cache. [path=%s][size=%ld][deltae=%ld]",
+                       key.c_str(), entry->stbuf.st_size, sz);
+#endif
 	}
 
 	pthread_mutex_unlock(&StatCache::stat_cache_lock);
