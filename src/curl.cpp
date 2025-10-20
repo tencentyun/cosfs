@@ -2780,7 +2780,7 @@ int S3fsCurl::ListBucketRequest(const char* tpath, const char* query)
 
   if(!S3fsCurl::IsPublicBucket()){
 	  // query has been encoded
-	  string Signature = CalcSignature("GET", "", "", date, resource, urlDecode(query));
+	  string Signature = CalcSignature("GET", "", "", date, resource, query);
 	  requestHeaders   = curl_slist_sort_insert(requestHeaders, "Authorization", Signature.c_str());
   }
 
@@ -4229,7 +4229,7 @@ map<string, string> get_params_from_query_string(const string &query)
       string key, val;
       if (string::npos != (pos = subquery.find('=', 0))) {
         key = subquery.substr(0, pos);
-        val = subquery.substr(pos + 1);
+        val = urlDecode(subquery.substr(pos + 1));
       } else {
         key = subquery;
       }
