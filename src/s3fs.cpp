@@ -125,6 +125,7 @@ static bool is_s3fs_umask         = false;// default does not set.
 static bool is_remove_cache       = false;
 static bool create_bucket         = false;
 static int64_t singlepart_copy_limit = FIVE_GB;
+static bool noflush_in_other_proc = false;
 
 //-------------------------------------------------------------------
 // Static functions : prototype
@@ -139,7 +140,7 @@ static int get_object_attribute(const char* path, struct stat* pstbuf, headers_t
 static int check_object_access(const char* path, int mask, struct stat* pstbuf);
 static int check_object_owner(const char* path, struct stat* pstbuf);
 static int check_parent_object_access(const char* path, int mask);
-static FdEntity* get_local_fent(const char* path, bool is_load = false);
+static FdEntity* get_local_fent(const char* path, bool is_load = false, int pid = -1);
 static bool multi_head_callback(S3fsCurl* s3fscurl);
 static S3fsCurl* multi_head_retry_callback(S3fsCurl* s3fscurl);
 static int readdir_multi_head(const char* path, S3ObjList& head, void* buf, fuse_fill_dir_t filler);
@@ -155,13 +156,13 @@ static xmlChar* get_prefix(xmlDocPtr doc);
 static xmlChar* get_next_marker(xmlDocPtr doc);
 static char* get_object_name(xmlDocPtr doc, xmlNodePtr node, const char* path);
 int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mtime = true);
-static int rename_large_object(const char* from, const char* to);
+static int rename_large_object(const char* from, const char* to, int pid);
 static int create_file_object(const char* path, mode_t mode, uid_t uid, gid_t gid);
 static int create_directory_object(const char* path, mode_t mode, time_t time, uid_t uid, gid_t gid);
-static int rename_object(const char* from, const char* to);
-static int rename_object_nocopy(const char* from, const char* to);
+static int rename_object(const char* from, const char* to, int pid);
+static int rename_object_nocopy(const char* from, const char* to, int pid);
 static int clone_directory_object(const char* from, const char* to);
-static int rename_directory(const char* from, const char* to);
+static int rename_directory(const char* from, const char* to, int pid);
 static int remote_mountpath_exists(const char* path);
 static xmlChar* get_exp_value_xml(xmlDocPtr doc, xmlXPathContextPtr ctx, const char* exp_key);
 static void print_uncomp_mp_list(uncomp_mp_list_t& list);
@@ -716,7 +717,7 @@ bool get_object_sse_type(const char* path, sse_type_t& ssetype, string& ssevalue
   return true;
 }
 
-static FdEntity* get_local_fent(const char* path, bool is_load)
+static FdEntity* get_local_fent(const char* path, bool is_load, int pid)
 {
   struct stat stobj;
   FdEntity*   ent;
@@ -732,12 +733,12 @@ static FdEntity* get_local_fent(const char* path, bool is_load)
   time_t mtime         = (!S_ISREG(stobj.st_mode) || S_ISLNK(stobj.st_mode)) ? -1 : stobj.st_mtime;
   bool   force_tmpfile = S_ISREG(stobj.st_mode) ? false : true;
 
-  if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(stobj.st_size), mtime, force_tmpfile, true))){
+  if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(stobj.st_size), mtime, force_tmpfile, true, pid))){
     S3FS_PRN_ERR("Coult not open file. errno(%d)", errno);
     return NULL;
   }
   // load
-  if(is_load && !ent->OpenAndLoadAll(&meta)){
+  if(is_load && !ent->OpenAndLoadAll(&meta, NULL, false, pid)){
     S3FS_PRN_ERR("Coult not load file. errno(%d)", errno);
     FdManager::get()->Close(ent);
     return NULL;
@@ -757,7 +758,11 @@ int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mti
   struct stat buf;
 
   S3FS_PRN_INFO2("[path=%s]", path);
-
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+  }
   // files larger than 5GB must be modified via the multipart interface
   // *** If there is not target object(a case of move command),
   //     get_object_attribute() returns error with initilizing buf.
@@ -776,11 +781,11 @@ int put_headers(const char* path, headers_t& meta, bool is_copy, bool update_mti
 
   FdEntity* ent = NULL;
   if(update_mtime && '/' != path[strlen(path) - 1]){
-      if(NULL == (ent = FdManager::get()->ExistOpen(path, -1, !(FdManager::get()->IsCacheDir())))){
+      if(NULL == (ent = FdManager::get()->ExistOpen(path, -1, !(FdManager::get()->IsCacheDir()), pid))){
           // no opened fd
           if(FdManager::get()->IsCacheDir()){
               // create cache file if be needed
-              ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true);
+              ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true, pid);
           }
       }
       if(ent){
@@ -798,7 +803,11 @@ static int s3fs_getattr(const char* path, struct stat* stbuf)
   int result;
 
   S3FS_PRN_INFO("[path=%s]", path);
-
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+  }
   // check parent directory attribute.
   if(0 != (result = check_parent_object_access(path, X_OK))){
     return result;
@@ -811,7 +820,7 @@ static int s3fs_getattr(const char* path, struct stat* stbuf)
   if(stbuf){
     FdEntity*   ent;
 
-    if(NULL != (ent = FdManager::get()->ExistOpen(path))){
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, false, pid))){
       struct stat tmpstbuf;
       if(ent->GetStats(tmpstbuf)){
         stbuf->st_size = tmpstbuf.st_size;
@@ -832,9 +841,15 @@ static int s3fs_readlink(const char* path, char* buf, size_t size)
   if(!path || !buf || 0 >= size){
     return 0;
   }
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+  }
+
   // Open
   FdEntity*   ent;
-  if(NULL == (ent = get_local_fent(path))){
+  if(NULL == (ent = get_local_fent(path, false, pid))){
     S3FS_PRN_ERR("could not get fent(file=%s)", path);
     return -EIO;
   }
@@ -957,7 +972,7 @@ static int s3fs_create(const char* path, mode_t mode, struct fuse_file_info* fi)
   FdEntity*   ent;
   headers_t   meta;
   get_object_attribute(path, NULL, &meta);
-  if(NULL == (ent = FdManager::get()->Open(path, &meta, 0, -1, false, true))){
+  if(NULL == (ent = FdManager::get()->Open(path, &meta, 0, -1, false, true, pcxt->pid))){
     return -EIO;
   }
   fi->fh = ent->GetFd();
@@ -1153,7 +1168,7 @@ static int s3fs_symlink(const char* from, const char* to)
 
   // open tmpfile
   FdEntity* ent;
-  if(NULL == (ent = FdManager::get()->Open(to, &headers, 0, -1, true, true))){
+  if(NULL == (ent = FdManager::get()->Open(to, &headers, 0, -1, true, true, pcxt->pid))){
     S3FS_PRN_ERR("could not open tmpfile(errno=%d)", errno);
     return -errno;
   }
@@ -1176,7 +1191,7 @@ static int s3fs_symlink(const char* from, const char* to)
   return result;
 }
 
-static int rename_object(const char* from, const char* to)
+static int rename_object(const char* from, const char* to, int pid)
 {
   int result;
   string s3_realpath;
@@ -1202,7 +1217,7 @@ static int rename_object(const char* from, const char* to)
   meta["Content-Type"]             = S3fsCurl::LookupMimeType(string(to));
   meta["x-cos-metadata-directive"] = "REPLACE";
   FdEntity*    ent = NULL;
-  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true))){
+  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true, pid))){
     // no others open it and specify use cache dir
     if(FdManager::IsCacheDir()){
       // create cache file if be needed
@@ -1215,7 +1230,7 @@ static int rename_object(const char* from, const char* to)
       // This does not affect the rename process, but the cache information in
       // the "modified" state remains, making it impossible to read the file correctly.
       //
-      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true))){
+      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true, pid))){
         S3FS_PRN_ERR("could not open file for rename(%s): errno=%d", from, errno);
         return -EIO;
       }
@@ -1245,7 +1260,7 @@ static int rename_object(const char* from, const char* to)
   return result;
 }
 
-static int rename_object_nocopy(const char* from, const char* to)
+static int rename_object_nocopy(const char* from, const char* to, int pid)
 {
   int result;
 
@@ -1262,7 +1277,7 @@ static int rename_object_nocopy(const char* from, const char* to)
 
   // open & load
   FdEntity* ent;
-  if(NULL == (ent = get_local_fent(from, true))){
+  if(NULL == (ent = get_local_fent(from, true, pid))){
     S3FS_PRN_ERR("could not open and read file(%s)", from);
     return -EIO;
   }
@@ -1291,7 +1306,7 @@ static int rename_object_nocopy(const char* from, const char* to)
   return result;
 }
 
-static int rename_large_object(const char* from, const char* to)
+static int rename_large_object(const char* from, const char* to, int pid)
 {
   int         result;
   struct stat buf;
@@ -1311,7 +1326,7 @@ static int rename_large_object(const char* from, const char* to)
     return result;
   }
   FdEntity*    ent = NULL;
-  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true))){
+  if(NULL == (ent = FdManager::get()->ExistOpen(from, -1, true, pid))){
     // no others open it and specify use cache dir
     if(FdManager::IsCacheDir()){
       // create cache file if be needed
@@ -1324,7 +1339,7 @@ static int rename_large_object(const char* from, const char* to)
       // This does not affect the rename process, but the cache information in
       // the "modified" state remains, making it impossible to read the file correctly.
       //
-      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true))){
+      if(NULL == (ent = FdManager::get()->Open(from, &meta, static_cast<ssize_t>(buf.st_size), -1, false, true, pid))){
         S3FS_PRN_ERR("could not open file for rename(%s): errno=%d", from, errno);
         return -EIO;
       }
@@ -1370,7 +1385,7 @@ static int clone_directory_object(const char* from, const char* to)
   return result;
 }
 
-static int rename_directory(const char* from, const char* to)
+static int rename_directory(const char* from, const char* to, int pid)
 {
   S3ObjList head;
   s3obj_list_t headlist;
@@ -1475,9 +1490,9 @@ static int rename_directory(const char* from, const char* to)
   for(mn_cur = mn_head; mn_cur; mn_cur = mn_cur->next){
     if(!mn_cur->is_dir){
       if(!nocopyapi && !norenameapi){
-        result = rename_object(mn_cur->old_path, mn_cur->new_path);
+        result = rename_object(mn_cur->old_path, mn_cur->new_path, pid);
       }else{
-        result = rename_object_nocopy(mn_cur->old_path, mn_cur->new_path);
+        result = rename_object_nocopy(mn_cur->old_path, mn_cur->new_path, pid);
       }
       if(0 != result){
         S3FS_PRN_ERR("rename_object returned an error(%d)", result);
@@ -1514,6 +1529,13 @@ static int s3fs_rename(const char* from, const char* to)
 
   S3FS_PRN_INFO("[from=%s][to=%s]", from, to);
 
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
+
   if(0 != (result = check_parent_object_access(to, W_OK | X_OK))){
     // not permmit writing "to" object parent dir.
     return result;
@@ -1526,7 +1548,7 @@ static int s3fs_rename(const char* from, const char* to)
     return result;
   }
   FdEntity* ent;
-  if(NULL != (ent = FdManager::get()->ExistOpen(from, -1, true))) {
+  if(NULL != (ent = FdManager::get()->ExistOpen(from, -1, true, pid))) {
     if(0 != (result = ent->Flush(true))) {
       FdManager::get()->Close(ent);
       S3FS_PRN_ERR("could not upload file %s, result=%d", from, result);
@@ -1537,14 +1559,14 @@ static int s3fs_rename(const char* from, const char* to)
   }
   // files larger than 5GB must be modified via the multipart interface
   if(S_ISDIR(buf.st_mode)){
-    result = rename_directory(from, to);
+    result = rename_directory(from, to, pid);
   }else if(!nomultipart && buf.st_size >= singlepart_copy_limit){
-    result = rename_large_object(from, to);
+    result = rename_large_object(from, to, pid);
   }else{
     if(!nocopyapi && !norenameapi){
-      result = rename_object(from, to);
+      result = rename_object(from, to, pid);
     }else{
-      result = rename_object_nocopy(from, to);
+      result = rename_object_nocopy(from, to, pid);
     }
   }
   S3FS_MALLOCTRIM(0);
@@ -1630,7 +1652,7 @@ static int s3fs_chmod(const char* path, mode_t mode)
     // Or if the file is only open, we must update to FdEntity's internal meta.
     //
     FdEntity* ent;
-    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true, pid))){
         // the file is opened now.
         if(ent->MergeOrgMeta(updatemeta)){
             // now uploading
@@ -1723,7 +1745,7 @@ static int s3fs_chmod_nocopy(const char* path, mode_t mode)
 
     // open & load
     FdEntity* ent;
-    if(NULL == (ent = get_local_fent(strpath.c_str(), true))){
+    if(NULL == (ent = get_local_fent(strpath.c_str(), true, pid))){
       S3FS_PRN_ERR("could not open and read file(%s)", strpath.c_str());
       return -EIO;
     }
@@ -1834,7 +1856,7 @@ static int s3fs_chown(const char* path, uid_t uid, gid_t gid)
     // Or if the file is only open, we must update to FdEntity's internal meta.
     //
     FdEntity* ent;
-    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true, pid))){
         // the file is opened now.
         if(ent->MergeOrgMeta(updatemeta)){
             // now uploading
@@ -1935,7 +1957,7 @@ static int s3fs_chown_nocopy(const char* path, uid_t uid, gid_t gid)
 
     // open & load
     FdEntity* ent;
-    if(NULL == (ent = get_local_fent(strpath.c_str(), true))){
+    if(NULL == (ent = get_local_fent(strpath.c_str(), true, pid))){
       S3FS_PRN_ERR("could not open and read file(%s)", strpath.c_str());
       return -EIO;
     }
@@ -2030,7 +2052,7 @@ static int s3fs_utimens(const char* path, const struct timespec ts[2])
     // Or if the file is only open, we must update to FdEntity's internal meta.
     //
     FdEntity* ent;
-    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+    if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true, pid))){
         // the file is opened now.
         if(ent->MergeOrgMeta(updatemeta)){
             // now uploading
@@ -2124,7 +2146,7 @@ static int s3fs_utimens_nocopy(const char* path, const struct timespec ts[2])
 
     // open & load
     FdEntity* ent;
-    if(NULL == (ent = get_local_fent(strpath.c_str(), true))){
+    if(NULL == (ent = get_local_fent(strpath.c_str(), true, pid))){
       S3FS_PRN_ERR("could not open and read file(%s)", strpath.c_str());
       return -EIO;
     }
@@ -2158,7 +2180,12 @@ static int s3fs_truncate(const char* path, off_t size)
   FdEntity* ent = NULL;
 
   S3FS_PRN_INFO("[path=%s][size=%jd]", path, (intmax_t)size);
-
+  int pid = -1;
+  struct fuse_context* pcxt;
+  if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
+    S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
+  }
   if(size < 0){
     size = 0;
   }
@@ -2173,7 +2200,7 @@ static int s3fs_truncate(const char* path, off_t size)
   // Get file information
   if(0 == (result = get_object_attribute(path, NULL, &meta))){
     // Exists -> Get file(with size)
-    if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(size), -1, false, true))){
+    if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(size), -1, false, true, pid))){
       S3FS_PRN_ERR("could not open file(%s): errno=%d", path, errno);
       return -EIO;
     }
@@ -2207,7 +2234,7 @@ static int s3fs_truncate(const char* path, off_t size)
     meta["x-cos-meta-uid"]   = str(pcxt->uid);
     meta["x-cos-meta-gid"]   = str(pcxt->gid);
 
-    if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(size), -1, true, true))){
+    if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(size), -1, true, true, pid))){
       S3FS_PRN_ERR("could not open file(%s): errno=%d", path, errno);
       return -EIO;
     }
@@ -2234,8 +2261,10 @@ static int s3fs_open(const char* path, struct fuse_file_info* fi)
   bool needs_flush = false;
 
   S3FS_PRN_INFO("[path=%s][flags=%d]", path, fi->flags);
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+	pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -2271,7 +2300,7 @@ static int s3fs_open(const char* path, struct fuse_file_info* fi)
   FdEntity*   ent;
   headers_t   meta;
   get_object_attribute(path, NULL, &meta);
-  if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(st.st_size), st.st_mtime, false, true))){
+  if(NULL == (ent = FdManager::get()->Open(path, &meta, static_cast<ssize_t>(st.st_size), st.st_mtime, false, true, pid))){
     return -EIO;
   }
 
@@ -2294,13 +2323,15 @@ static int s3fs_read(const char* path, char* buf, size_t size, off_t offset, str
   ssize_t res;
 
   S3FS_PRN_DBG("[path=%s][size=%zu][offset=%jd][fd=%llu]", path, size, (intmax_t)offset, (unsigned long long)(fi->fh));
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
   FdEntity* ent;
-  if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
+  if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh), pid))){
     S3FS_PRN_ERR("could not find opened fd(%s)", path);
     return -EIO;
   }
@@ -2329,13 +2360,15 @@ static int s3fs_write(const char* path, const char* buf, size_t size, off_t offs
   ssize_t res;
 
   S3FS_PRN_DBG("[path=%s][size=%zu][offset=%jd][fd=%llu]", path, size, (intmax_t)offset, (unsigned long long)(fi->fh));
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
   FdEntity* ent;
-  if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
+  if(NULL == (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh), pid))){
     S3FS_PRN_ERR("could not find opened fd(%s)", path);
     return -EIO;
   }
@@ -2366,8 +2399,10 @@ static int s3fs_flush(const char* path, struct fuse_file_info* fi)
   int result;
 
   S3FS_PRN_INFO("[path=%s][fd=%llu]", path, (unsigned long long)(fi->fh));
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
@@ -2385,7 +2420,12 @@ static int s3fs_flush(const char* path, struct fuse_file_info* fi)
   }
 
   FdEntity* ent;
-  if(NULL != (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh), pid))){
+    if (noflush_in_other_proc && ent->GetOpenPid() != -1 && ent->GetOpenPid() != pid) {
+      S3FS_PRN_INFO("no flush in other process, want pid: %d, actual pid: %d", ent->GetOpenPid(), pid);
+      FdManager::get()->Close(ent);
+      return 0;
+    }
     ent->UpdateMtime();
     result = ent->Flush(false);
     FdManager::get()->Close(ent);
@@ -2403,13 +2443,15 @@ static int s3fs_fsync(const char* path, int datasync, struct fuse_file_info* fi)
   int result = 0;
 
   S3FS_PRN_INFO("[path=%s][fd=%llu]", path, (unsigned long long)(fi->fh));
+  int pid = -1;
   struct fuse_context* pcxt;
   if(NULL != (pcxt = fuse_get_context())){
+    pid = pcxt->pid;
     S3FS_PRN_INFO("%s, uid=[%d], gid=[%d], pid=[%d]", __FUNCTION__, pcxt->uid, pcxt->gid, pcxt->pid);
   }
 
   FdEntity* ent;
-  if(NULL != (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh)))){
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, static_cast<int>(fi->fh), pid))){
     if(0 == datasync){
       ent->UpdateMtime();
     }
@@ -3317,7 +3359,7 @@ static int s3fs_setxattr(const char* path, const char* name, const char* value, 
   // Or if the file is only open, we must update to FdEntity's internal meta.
   //
   FdEntity* ent;
-  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true, pid))){
       // the file is opened now.
       // get xattr and make new xattr
       std::string strxattr;
@@ -3637,7 +3679,7 @@ static int s3fs_removexattr(const char* path, const char* name)
   // Or if the file is only open, we must update to FdEntity's internal meta.
   //
   FdEntity* ent;
-  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true))){
+  if(NULL != (ent = FdManager::get()->ExistOpen(path, -1, true, pid))){
       // the file is opened now.
       if(ent->MergeOrgMeta(updatemeta)){
           // now uploading
@@ -4695,6 +4737,10 @@ static int my_fuse_opt_proc(void* data, const char* arg, int key, struct fuse_ar
     }
     if(0 == strcmp(arg, "noxattr")){
       noxattr = true;
+      return 0;
+    }
+    if (0 == strcmp(arg, "noflush_in_other_proc")) {
+      noflush_in_other_proc = true;
       return 0;
     }
     if(0 == STR2NCMP(arg, "user_agent_suffix=")){

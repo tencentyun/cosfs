@@ -658,7 +658,7 @@ int FdEntity::FillFile(int fd, unsigned char byte, size_t size, off_t start)
 //------------------------------------------------
 FdEntity::FdEntity(const char* tpath, const char* cpath)
         : is_lock_init(false), refcnt(0), path(SAFESTRPTR(tpath)), cachepath(SAFESTRPTR(cpath)),
-          fd(-1), pfile(NULL), is_modify(false), size_orgmeta(0), upload_id(""), mp_start(0), mp_size(0),
+          open_pid(-1), fd(-1), pfile(NULL), is_modify(false), size_orgmeta(0), upload_id(""), mp_start(0), mp_size(0),
           is_meta_pending(false), is_no_disk_space_flushed(false)
 {
   try{
@@ -700,6 +700,7 @@ void FdEntity::Clear(void)
     fclose(pfile);
     pfile = NULL;
     fd    = -1;
+    open_pid = -1;
   }
   pagelist.Init(0, false);
   refcnt    = 0;
@@ -728,6 +729,7 @@ void FdEntity::Close(void)
       fclose(pfile);
       pfile = NULL;
       fd    = -1;
+      open_pid = -1;
     }
   }
 }
@@ -747,7 +749,7 @@ int FdEntity::Dup(void)
 // This method does not lock fdent_lock, because FdManager::fd_manager_lock
 // is locked before calling.
 //
-int FdEntity::Open(headers_t* pmeta, ssize_t size, time_t time)
+int FdEntity::Open(headers_t* pmeta, ssize_t size, time_t time, int pid)
 {
   S3FS_PRN_DBG("[path=%s][fd=%d][size=%jd][time=%jd]", path.c_str(), fd, (intmax_t)size, (intmax_t)time);
 
@@ -879,6 +881,9 @@ int FdEntity::Open(headers_t* pmeta, ssize_t size, time_t time)
     }
   }
 
+  if (-1 != fd) {
+    open_pid = pid;
+  }	
   return 0;
 }
 
@@ -936,14 +941,14 @@ bool FdEntity::RenamePath(const std::string& newpath, std::string& fentmapkey) {
 // So we do not check disk space for this option mode, if there is no enough
 // disk space this method will be failed.
 //
-bool FdEntity::OpenAndLoadAll(headers_t* pmeta, size_t* size, bool force_load)
+bool FdEntity::OpenAndLoadAll(headers_t* pmeta, size_t* size, bool force_load, int pid)
 {
   int result;
 
   S3FS_PRN_INFO3("[path=%s][fd=%d]", path.c_str(), fd);
 
   if(-1 == fd){
-    if(0 != Open(pmeta)){
+    if(0 != Open(pmeta, -1, -1, pid)){
       return false;
     }
   }
@@ -2095,7 +2100,7 @@ FdEntity* FdManager::GetFdEntity(const char* path, int existfd)
   return NULL;
 }
 
-FdEntity* FdManager::Open(const char* path, headers_t* pmeta, ssize_t size, time_t time, bool force_tmpfile, bool is_create)
+FdEntity* FdManager::Open(const char* path, headers_t* pmeta, ssize_t size, time_t time, bool force_tmpfile, bool is_create, int pid)
 {
   S3FS_PRN_DBG("[path=%s][size=%jd][time=%jd]", SAFESTRPTR(path), (intmax_t)size, (intmax_t)time);
 
@@ -2154,18 +2159,18 @@ FdEntity* FdManager::Open(const char* path, headers_t* pmeta, ssize_t size, time
   }
 
   // open
-  if(-1 == ent->Open(pmeta, size, time)){
+  if(-1 == ent->Open(pmeta, size, time, pid)){
     return NULL;
   }
   return ent;
 }
 
-FdEntity* FdManager::ExistOpen(const char* path, int existfd, bool ignore_existfd)
+FdEntity* FdManager::ExistOpen(const char* path, int existfd, bool ignore_existfd, int pid)
 {
   S3FS_PRN_DBG("[path=%s][fd=%d][ignore_existfd=%s]", SAFESTRPTR(path), existfd, ignore_existfd ? "true" : "false");
 
   // search by real path
-  FdEntity* ent = Open(path, NULL, -1, -1, false, false);
+  FdEntity* ent = Open(path, NULL, -1, -1, false, false, pid);
 
   if(!ent && (ignore_existfd || (-1 != existfd))){
     // search from all fdentity because of not using cache.

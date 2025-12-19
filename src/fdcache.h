@@ -116,6 +116,7 @@ class FdEntity
     std::string     path;           // object path
     std::string     cachepath;      // local cache file path
                                     // (if this is empty, does not load/save pagelist.)
+    int             open_pid;       // process id in fd open
     int             fd;             // file descriptor(tmp file or cache file)
     FILE*           pfile;          // file pointer(tmp file or cache file)
     bool            is_modify;      // if file is changed, this flag is true
@@ -148,13 +149,14 @@ class FdEntity
   
     void Close(void);
     bool IsOpen(void) const { return (-1 != fd); }
-    int Open(headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1);
-    bool OpenAndLoadAll(headers_t* pmeta = NULL, size_t* size = NULL, bool force_load = false);
+    int Open(headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1, int pid = -1);
+    bool OpenAndLoadAll(headers_t* pmeta = NULL, size_t* size = NULL, bool force_load = false, int pid = -1);
     int Dup(void);
 
     const char* GetPath(void) const { return path.c_str(); }
     bool RenamePath(const std::string& newpath, std::string& fentmapkey);
     int GetFd(void) const { return fd; }
+    int GetOpenPid(void) const { return open_pid; }
 
     bool GetStats(struct stat& st);
     int SetMtime(time_t time, bool lock_already_held = false);
@@ -225,8 +227,8 @@ class FdManager
     static bool IsSafeDiskSpace(const char* path, size_t size);
 
     FdEntity* GetFdEntity(const char* path, int existfd = -1);
-    FdEntity* Open(const char* path, headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1, bool force_tmpfile = false, bool is_create = true);
-    FdEntity* ExistOpen(const char* path, int existfd = -1, bool ignore_existfd = false);
+    FdEntity* Open(const char* path, headers_t* pmeta = NULL, ssize_t size = -1, time_t time = -1, bool force_tmpfile = false, bool is_create = true, int pid = -1);
+    FdEntity* ExistOpen(const char* path, int existfd = -1, bool ignore_existfd = false, int pid = -1);
     bool Rename(const std::string &from, const std::string &to);
     bool Close(FdEntity* ent);
     bool ChangeEntityToTempPath(FdEntity* ent, const char* path);
